@@ -7,6 +7,7 @@
 #include <string>
 #include <cmath>
 #include <math.h>
+#include <ctgmath>
 
 #include <webots/Robot.hpp>
 #include <webots/DistanceSensor.hpp>
@@ -34,9 +35,10 @@ struct Location
 	int Col;
 };
 
-Obstacle DetectObstacles(Robot *robot, DistanceSensor *ps[3]);
+//Obstacle DetectObstacles(Robot *robot, DistanceSensor *ps[3]);
+Obstacle DetectObstacles(Robot *robot, DistanceSensor *LDS, DistanceSensor *FDS, DistanceSensor *RDS);
 void GoForward(Robot *robot, Motor *leftMotor, Motor *rightMotor);
-void Turn(Robot *robot, Motor *leftMotor, Motor *rightMotor, char direction);
+void Turn(Robot *robot, Motor *leftMotor, Motor *rightMotor, Compass *compass, char direction);
 double GetBearing(const double *comValue);
 Location GetLocation(Robot *robot, GPS *gps);
 
@@ -82,8 +84,6 @@ int main()
     Motor *leftMotor = robot->getMotor("left wheel motor");
     Motor *rightMotor = robot->getMotor("right wheel motor");
 
-    //Turn(robot, leftMotor, rightMotor, 'r');
-    //GoForward(robot, leftMotor, rightMotor);
 
     //initialise compass
     Compass *compass = robot->getCompass("compass");
@@ -91,7 +91,7 @@ int main()
     const double *comValue = compass->getValues();
     //std::cout << "comValue0: " << comValue[0] << std::endl;
     //std::cout << "comValue2: " << comValue[2] << std::endl;
-    double bearing = GetBearing(comValue);
+    //double bearing = GetBearing(comValue);
 
     //std::cout << bearing << std::endl;
 
@@ -102,53 +102,15 @@ int main()
     //std::cout << "gpsValue0: " << gpsValue[0] << std::endl;
     //std::cout << "gpsValue2: " << gpsValue[2] << std::endl;
 
+    //Turn(robot, leftMotor, rightMotor, compass, 'r');
+    //GoForward(robot, leftMotor, rightMotor);
+
     // feedback loop: step simulation until an exit event is received
     while (robot->step(TIME_STEP) != -1) {
-    // read sensors outputs
-      /*  double psValues[3];
-        for (int i = 0; i < 3 ; i++)
-        {
-            psValues[i] = ps[i]->getValue();
-        }
+    
+        //Obstacle current = DetectObstacles(robot, ps[0], ps[1], ps[2]);
+        //std::cout << current.LeftWall << "  " << current.FrontWall << "  " << current.RightWall  << std::endl;
 
-        //std::cout << psValues[0] << "  " << psValues[1] << "  " << psValues[2]  << std::endl;
-
-        //detect obstacles
-        bool LeftObstacle = psValues[0] < 500.0;
-        bool FrontObstacle = psValues[1] < 500.0;
-        bool RightObstacle = psValues[2] < 500.0;
-
-        Obstacle obstacle;
-
-        if (LeftObstacle == 1)
-        {
-            obstacle.LeftWall = 'Y';
-        }
-        else
-        {
-            obstacle.LeftWall = 'N';
-        }
-
-        if (RightObstacle == 1)
-        {
-            obstacle.RightWall = 'Y';
-        }
-        else
-        {
-            obstacle.RightWall = 'N';
-        }
-
-        if (FrontObstacle == 1)
-        {
-            obstacle.FrontWall = 'Y';
-        }
-        else
-        {
-           obstacle.FrontWall = 'N';
-        }
-
-        std::cout << obstacle.LeftWall << "  " << obstacle.FrontWall << "  " << obstacle.RightWall  << std::endl;
-*/
         //int counter = 3;
         //std::cout << PathLength << std::endl;
 
@@ -180,8 +142,8 @@ int main()
         //std::cout << "gpsValue2: " << gpsValue[2] << std::endl;
 
         Location Current = GetLocation(robot, gps);
-        std::cout << "row: " << Current.Row << std::endl;
-        std::cout << "col: " << Current.Col << std::endl;
+        //std::cout << "row: " << Current.Row << std::endl;
+        //std::cout << "col: " << Current.Col << std::endl;
 
         //initialise compass
         Compass *compass = robot->getCompass("compass");
@@ -190,6 +152,18 @@ int main()
         double bearing = GetBearing(comValue);
         //std::cout << "bearing: " << bearing << std::endl;
 
+
+        Turn(robot, leftMotor, rightMotor, compass, 'r');
+        Turn(robot, leftMotor, rightMotor, compass, 'r');
+        Turn(robot, leftMotor, rightMotor, compass, 'r');
+        Turn(robot, leftMotor, rightMotor, compass, 'r');
+        Turn(robot, leftMotor, rightMotor, compass, 'l');
+        Turn(robot, leftMotor, rightMotor, compass, 'r');
+        Turn(robot, leftMotor, rightMotor, compass, 'l');
+        Turn(robot, leftMotor, rightMotor, compass, 'l');
+        Turn(robot, leftMotor, rightMotor, compass, 'l');
+
+        break;
     }
 
    
@@ -210,9 +184,9 @@ void GoForward(Robot *robot, Motor *leftMotor, Motor *rightMotor)
     return;
 }
 
-void Turn(Robot *robot, Motor *leftMotor, Motor *rightMotor, char direction)
+void Turn(Robot *robot, Motor *leftMotor, Motor *rightMotor, Compass *compass, char direction)
 {
-	int r = 1;
+	/*int r = 1;
 	int l = 1;
 
 	if (direction == 'r')
@@ -230,8 +204,115 @@ void Turn(Robot *robot, Motor *leftMotor, Motor *rightMotor, char direction)
 
     // set the target position of the motors
     leftMotor->setPosition(r*-10);
-    rightMotor->setPosition(l*-10);
+    rightMotor->setPosition(l*-10);*/
+
+    const double *comValue = compass->getValues();
+    double bearing = GetBearing(comValue);
+    double DesiredBearing = 0;
     
+    // initialize motor speeds
+    double leftSpeed  = 0;
+    double rightSpeed = 0;
+    int leftMultiplier = 0;
+    int rightMultiplier = 0;
+
+    leftMotor->setPosition(INFINITY);
+    rightMotor->setPosition(INFINITY);
+    leftMotor->setVelocity(0.0);
+    rightMotor->setVelocity(0.0);
+
+    
+    //if the robot is turning right, set desired bearing to current + 90 degrees
+    if (direction == 'r')
+	{
+        DesiredBearing = bearing + 90;
+        DesiredBearing = nearbyint(DesiredBearing);
+        if (DesiredBearing > 360.0)
+        {
+            DesiredBearing = DesiredBearing - 360;
+        }
+
+        //leftSpeed  = 0.1 * MAX_SPEED;
+        //rightSpeed = -(0.1 * MAX_SPEED);
+        //leftSpeed  = 1;
+        //rightSpeed = -1;
+        leftMultiplier = 1;
+        rightMultiplier = -1;
+	}
+
+	//if the robot is turning left, set desired bearing to current - 90 degrees
+	else if (direction == 'l')
+	{
+        DesiredBearing = bearing - 90;
+        DesiredBearing = nearbyint(DesiredBearing);
+        if (DesiredBearing < 0.0)
+        {
+            DesiredBearing = DesiredBearing + 360;
+        }
+
+        //leftSpeed  = -(0.1 * MAX_SPEED);
+        //rightSpeed = 0.1 * MAX_SPEED;
+        //leftSpeed  = -1;
+        //rightSpeed = 1;
+        leftMultiplier = -1;
+        rightMultiplier = 1;
+	}
+
+    std::cout << "bearing: " << bearing << "  DesiredBearing: " << DesiredBearing << std::endl;
+
+	while (robot->step(TIME_STEP) != -1)
+	{
+        const double *comValue = compass->getValues();
+        double bearing = GetBearing(comValue);
+        std::cout << bearing << std::endl;
+
+        double error = abs(DesiredBearing - bearing);
+        leftSpeed = 0.05*error*leftMultiplier;
+        rightSpeed = 0.05*error*rightMultiplier;
+
+        if (leftSpeed > MAX_SPEED)
+        {
+        	leftSpeed = MAX_SPEED;
+        }
+        else if (leftSpeed < -MAX_SPEED)
+        {
+            leftSpeed = -MAX_SPEED;
+        }
+
+        if (rightSpeed > MAX_SPEED)
+        {
+        	rightSpeed = MAX_SPEED;
+        }
+        else if (rightSpeed < -MAX_SPEED)
+        {
+            rightSpeed = -MAX_SPEED;
+        }
+
+		// write actuators inputs
+        leftMotor->setVelocity(leftSpeed);
+        rightMotor->setVelocity(rightSpeed);
+        
+        
+        
+        /*if (int(bearing) == int(DesiredBearing))
+        {
+        	leftMotor->setVelocity(0.0);
+            rightMotor->setVelocity(0.0);
+            std::cout << "finished turning" << std::endl;
+            break;
+        }*/
+
+        if (nearbyint(bearing) == nearbyint(DesiredBearing))
+        {
+        	leftMotor->setVelocity(0.0);
+            rightMotor->setVelocity(0.0);
+            std::cout << "finished turning" << std::endl;
+            break;
+        }
+	}
+
+	std::cout << "done" << std::endl;
+	return;
 }
 
 double GetBearing(const double *comValue)
@@ -255,44 +336,25 @@ Location GetLocation(Robot *robot, GPS *gps)
     return CurrentLocation;
 }
 
-Obstacle DetectObstacles(Robot *robot, DistanceSensor *ps)
+Obstacle DetectObstacles(Robot *robot, DistanceSensor *LDS, DistanceSensor *FDS, DistanceSensor *RDS)
 {
 	Obstacle obstacle;
-    /*// initialize devices
-    DistanceSensor *ps[8];
-    char psNames[8][4] = {
-    "ps0", "ps1", "ps2", "ps3",
-    "ps4", "ps5", "ps6", "ps7"
-    };
-  
-    for (int i = 0; i < 8; i++) {
-    ps[i] = robot->getDistanceSensor(psNames[i]);
-    ps[i]->enable(TIME_STEP);
-    }
+    
+    double psValues[3];
+    
+    psValues[0] = LDS->getValue();
+    psValues[1] = FDS->getValue();
+    psValues[2] = RDS->getValue();
 
-	Obstacle obstacle;
-    // read sensors outputs
-    double psValues[8];
-    for (int i = 0; i < 8 ; i++)
-    {
-      psValues[i] = ps[i]->getValue();
-    }*/
-
+    //std::cout << psValues[0] << "  " << psValues[1] << "  " << psValues[2]  << std::endl;
     
 
-   /* // detect obstacles
-    bool RightObstacle =
-      psValues[1] > 80.0 ||
-      psValues[2] > 80.0;
-    bool LeftObstacle =
-      psValues[5] > 80.0 ||
-      psValues[6] > 80.0;
-    bool FrontObstacle =
-      psValues[0] > 80.0 ||
-      psValues[7] > 80.0;
+    //detect obstacles
+    bool LeftObstacle = psValues[0] < 500.0;
+    bool FrontObstacle = psValues[1] < 500.0;
+    bool RightObstacle = psValues[2] < 500.0;
 
-    std::cout << psValues[1] << psValues[2] << psValues[5] << psValues[6] << psValues[0] << psValues[7] << std::endl;
-
+    
     if (LeftObstacle == 1)
     {
         obstacle.LeftWall = 'Y';
@@ -318,7 +380,8 @@ Obstacle DetectObstacles(Robot *robot, DistanceSensor *ps)
     else
     {
        obstacle.FrontWall = 'N';
-    }*/
+    }
     
     return obstacle;
 };
+
