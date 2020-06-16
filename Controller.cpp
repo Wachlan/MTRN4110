@@ -16,7 +16,8 @@
 #include <webots/GPS.hpp>
 #include <webots/PositionSensor.hpp>
 
-#define PATH_PLAN_FILE_NAME "C:/Users/Lachlan/Documents/MTRN4110/PathPlan.txt"
+//#define PATH_PLAN_FILE_NAME "C:/Users/Lachlan/Documents/MTRN4110/PathPlan.txt"
+#define PATH_PLAN_FILE_NAME "../../PathPlan.txt"
 //path plan 00SFLFFLFRFRFFFLFRFLFFLFRFLFLFFF
 #define TIME_STEP 64 // time in [ms] of a simulation step
 #define MAX_SPEED 6.28
@@ -36,7 +37,6 @@ struct Location
 	int Col;
 };
 
-//Obstacle DetectObstacles(Robot *robot, DistanceSensor *ps[3]);
 Obstacle DetectObstacles(Robot *robot, DistanceSensor *LDS, DistanceSensor *FDS, DistanceSensor *RDS);
 void GoForward(Robot *robot, Motor *leftMotor, Motor *rightMotor, PositionSensor *leftSensor);
 void Turn(Robot *robot, Motor *leftMotor, Motor *rightMotor, Compass *compass, char direction);
@@ -44,7 +44,6 @@ double GetBearing(const double *comValue);
 Location GetLocation(Robot *robot, GPS *gps);
 void PrintInformation(Robot *robot, DistanceSensor *LDS, DistanceSensor *FDS, DistanceSensor *RDS, GPS *gps, Compass *compass, int step);
 char GetHeading(double bearing);
-//double round(double number, double round);
 
 int main()
 {
@@ -56,18 +55,6 @@ int main()
     std::string path;
     getline(inFile,path);
     int PathLength = path.length();
-
-
-    /*int InitialRow = (path[0]) - '0';
-    int InitialColumn = (path[1]) - '0';
-    char InitialHeading = path[2];
-    int InitialStep = 00;*/
-    
-    //std::cout << "Step: " << std::setfill('0') << std::setw(2) << InitialStep << ", Row: " << InitialRow << ", Column: " << InitialColumn << ", Heading: " << InitialHeading << std::endl;
-    
-    //Obstacle starting = DetectObstacles(robot, ps);
-    //std::cout << starting.LeftWall << starting.FrontWall << starting.RightWall << std::endl;
-
 
     //print information
     std::cout << "Start - Read path plan from " << PATH_PLAN_FILE_NAME << ":" << std::endl;
@@ -85,6 +72,7 @@ int main()
     "LDS", "FDS", "RDS"
     };
 
+    //initialise distance sensors
     for (int i = 0; i < 3; i++) {
         ps[i] = robot->getDistanceSensor(psNames[i]);
         ps[i]->enable(TIME_STEP);
@@ -98,22 +86,11 @@ int main()
     //initialise compass
     Compass *compass = robot->getCompass("compass");
     compass->enable(TIME_STEP);
-    const double *comValue = compass->getValues();
-    //std::cout << "comValue0: " << comValue[0] << std::endl;
-    //std::cout << "comValue2: " << comValue[2] << std::endl;
-    //double bearing = GetBearing(comValue);
-
-    //std::cout << bearing << std::endl;
+    //const double *comValue = compass->getValues();
 
     //initialise GPS
     GPS *gps = robot->getGPS("gps");
     gps->enable(TIME_STEP);
-    //const double *gpsValue = gps->getValues();
-    //std::cout << "gpsValue0: " << gpsValue[0] << std::endl;
-    //std::cout << "gpsValue2: " << gpsValue[2] << std::endl;
-
-    //Turn(robot, leftMotor, rightMotor, compass, 'r');
-    //GoForward(robot, leftMotor, rightMotor);
 
     //initialise Position Sensors
     PositionSensor *leftSensor = robot->getPositionSensor("left wheel sensor");
@@ -121,45 +98,22 @@ int main()
     leftSensor->enable(TIME_STEP);
     rightSensor->enable(TIME_STEP);
 
-    /*double LeftWheelPosition = leftSensor->getValue();
-    double RightWheelPosition = rightSensor->getValue();
-    std::cout << "LeftWheelPosition: " << LeftWheelPosition << "   RightWheelPosition: " << RightWheelPosition << std::endl;
-    */
 
     int step = 0;
-
-    /*if (robot->step(TIME_STEP) != -1)
-    {
-    	PrintInformation(robot, ps[0], ps[1], ps[2], gps, compass, step);
-        step = step + 1;
-    }*/
 
     // feedback loop: step simulation until an exit event is received
     while (robot->step(TIME_STEP) != -1) {
     
-        //Obstacle current = DetectObstacles(robot, ps[0], ps[1], ps[2]);
-        //std::cout << current.LeftWall << "  " << current.FrontWall << "  " << current.RightWall  << std::endl;
-
-        //int counter = 3;
-        //std::cout << PathLength << std::endl;
-        
-        //int step = 0;
-        //PrintInformation(robot, ps[0], ps[1], ps[2], gps, compass, step);
-        //Sleep(10000);
-
+        //print out information for step 0
         if (robot->step(TIME_STEP) != -1)
         {
         	PrintInformation(robot, ps[0], ps[1], ps[2], gps, compass, step);
             step = step + 1;
-            //robot->step(TIME_STEP);
         }
 
+        //loop through instructions and respond accordingly
         for (int counter = 3; counter < PathLength; counter++)
         {
-        	//std::cout << "counter " << counter << std::endl;
-        	
-            //PrintInformation(robot, ps[0], ps[1], ps[2], gps, compass, step);
-            //step = step + 1;
 
             if (path[counter] == 'F')
             {
@@ -176,30 +130,12 @@ int main()
 
             PrintInformation(robot, ps[0], ps[1], ps[2], gps, compass, step);
             step = step + 1;
-            //Sleep(1000);
             
         }
 
 
-        //const double *gpsValue = gps->getValues();
-        //std::cout << "gpsValue0: " << gpsValue[0] << std::endl;
-        //std::cout << "gpsValue2: " << gpsValue[2] << std::endl;
 
-        Location Current = GetLocation(robot, gps);
-        //std::cout << "row: " << Current.Row << std::endl;
-        //std::cout << "col: " << Current.Col << std::endl;
-
-        //initialise compass
-        Compass *compass = robot->getCompass("compass");
-        compass->enable(TIME_STEP);
-        const double *comValue = compass->getValues();
-        double bearing = GetBearing(comValue);
-        //std::cout << "bearing: " << bearing << std::endl;
-
-        double LeftWheelPosition = leftSensor->getValue();
-        double RightWheelPosition = rightSensor->getValue();
-        //std::cout << "LeftWheelPosition: " << LeftWheelPosition << "   RightWheelPosition: " << RightWheelPosition << std::endl;
-
+        
 
 
         /*Turn(robot, leftMotor, rightMotor, compass, 'r');
@@ -231,9 +167,6 @@ int main()
 
 void GoForward(Robot *robot, Motor *leftMotor, Motor *rightMotor, PositionSensor *leftSensor)
 {
-    /*// set the target position of the motors
-    leftMotor->setPosition(8.25);
-    rightMotor->setPosition(8.25);*/
 
     // initialize motor speeds
     double leftSpeed  = 0;
@@ -244,27 +177,22 @@ void GoForward(Robot *robot, Motor *leftMotor, Motor *rightMotor, PositionSensor
     leftMotor->setVelocity(0.0);
     rightMotor->setVelocity(0.0);
 
-
+    //Since both wheels move equal amounts to go forward, so only need to use one
     double LeftWheelPosition = leftSensor->getValue();
-    //double RightWheelPosition = rightSensor->getValue();
 
-    //the next desired position is 8.25 rad further, rounded to the nearest multiple of 8.25
-    //double DesiredLeftWheelPosition = round(LeftWheelPosition + 8.25, 8.25);
+    //the next desired position is 8.25 rad further
     double DesiredLeftWheelPosition = LeftWheelPosition + 8.25;
-    //double DesiredRightWheelPosition = RightWheelPosition + 8.25;
-
-    //std::cout << "Wheel location: " << LeftWheelPosition << "  Desired Wheel location: " << DesiredLeftWheelPosition << std::endl;
-
+    
     while (robot->step(TIME_STEP) != -1)
 	{
 		double LeftWheelPosition = leftSensor->getValue();
-        //std::cout << "Left wheel position: " << LeftWheelPosition << std::endl;
-
         double error = DesiredLeftWheelPosition - LeftWheelPosition;
 
+        //proportional closed feedback control
         leftSpeed = 10*error;
         rightSpeed = 10*error;
 
+        //ensure motor speeds do not exceed maximum
         if (leftSpeed > MAX_SPEED)
         {
             leftSpeed = MAX_SPEED;
@@ -287,44 +215,20 @@ void GoForward(Robot *robot, Motor *leftMotor, Motor *rightMotor, PositionSensor
         leftMotor->setVelocity(leftSpeed);
         rightMotor->setVelocity(rightSpeed);
 
+        //once the position has been reached, stop motors
         if (LeftWheelPosition == DesiredLeftWheelPosition || error < 0.01)
         {
         	leftMotor->setVelocity(0.0);
             rightMotor->setVelocity(0.0);
-            //std::cout << "finished moving" << std::endl;
             break;
         }
-
-
 	}
     
-
-    //std::cout << "LeftWheelPosition: " << LeftWheelPosition << "   RightWheelPosition: " << RightWheelPosition << std::endl;
-   // std::cout << "done" << std::endl;
     return;
 }
 
 void Turn(Robot *robot, Motor *leftMotor, Motor *rightMotor, Compass *compass, char direction)
 {
-	/*int r = 1;
-	int l = 1;
-
-	if (direction == 'r')
-	{
-        r = -1;
-	}
-	else if (direction == 'l')
-	{
-        l = -1;
-	}
-	else
-	{
-		return;
-	}
-
-    // set the target position of the motors
-    leftMotor->setPosition(r*-10);
-    rightMotor->setPosition(l*-10);*/
 
     const double *comValue = compass->getValues();
     double bearing = GetBearing(comValue);
@@ -346,13 +250,13 @@ void Turn(Robot *robot, Motor *leftMotor, Motor *rightMotor, Compass *compass, c
     if (direction == 'r')
 	{
         DesiredBearing = bearing + 90;
-        DesiredBearing = nearbyint(DesiredBearing);
-        if (DesiredBearing > 360.0)
+        DesiredBearing = nearbyint(DesiredBearing); //correct any error from the last turn
+        if (DesiredBearing > 360.0)                 //ensure bearing is in the range of 0-360
         {
             DesiredBearing = DesiredBearing - 360;
         }
 
-        leftMultiplier = 1;
+        leftMultiplier = 1;                         //ensure wheels spin in the correct directions
         rightMultiplier = -1;
 	}
 
@@ -361,7 +265,7 @@ void Turn(Robot *robot, Motor *leftMotor, Motor *rightMotor, Compass *compass, c
 	{
         DesiredBearing = bearing - 90;
         DesiredBearing = nearbyint(DesiredBearing);
-        if (DesiredBearing < 0.0)
+        if (DesiredBearing < 0.0)                     //ensure bearing is in the range of 0-360
         {
             DesiredBearing = DesiredBearing + 360;
         }
@@ -370,18 +274,18 @@ void Turn(Robot *robot, Motor *leftMotor, Motor *rightMotor, Compass *compass, c
         rightMultiplier = 1;
 	}
 
-    //std::cout << "bearing: " << bearing << "  DesiredBearing: " << DesiredBearing << std::endl;
-
+    
 	while (robot->step(TIME_STEP) != -1)
 	{
         const double *comValue = compass->getValues();
         double bearing = GetBearing(comValue);
-        //std::cout << bearing << std::endl;
 
+        //use proportional closed loop feedback control
         double error = abs(DesiredBearing - bearing);
         leftSpeed = 0.1*error*leftMultiplier;
         rightSpeed = 0.1*error*rightMultiplier;
 
+        //ensure motor output does not exceed maximum
         if (leftSpeed > MAX_SPEED)
         {
         	leftSpeed = MAX_SPEED;
@@ -409,18 +313,15 @@ void Turn(Robot *robot, Motor *leftMotor, Motor *rightMotor, Compass *compass, c
         {
         	leftMotor->setVelocity(0.0);
             rightMotor->setVelocity(0.0);
-            //std::cout << "finished turning" << std::endl;
             break;
         }
 	}
 
-	//std::cout << "done" << std::endl;
 	return;
 }
 
 double GetBearing(const double *comValue)
 {
-  //const double *north = wb_compass_get_values(tag);
   double rad = atan2(comValue[0], comValue[2]);
   double bearing = (rad - 1.5708) / M_PI * 180.0;
 
@@ -431,6 +332,8 @@ double GetBearing(const double *comValue)
   return bearing;
 }
 
+//function to convert GPS co-ordinates into row and column
+//returns results in a Location struct
 Location GetLocation(Robot *robot, GPS *gps)
 {
 	Location CurrentLocation;
@@ -441,18 +344,18 @@ Location GetLocation(Robot *robot, GPS *gps)
     return CurrentLocation;
 }
 
+//function to return which directions have obstacles
 Obstacle DetectObstacles(Robot *robot, DistanceSensor *LDS, DistanceSensor *FDS, DistanceSensor *RDS)
 {
-	Obstacle obstacle;
+	Obstacle obstacle;  //initialise obstacle struct
     
     double psValues[3];
     
+    //use distance sensors
     psValues[0] = LDS->getValue();
     psValues[1] = FDS->getValue();
     psValues[2] = RDS->getValue();
 
-    //std::cout << psValues[0] << "  " << psValues[1] << "  " << psValues[2]  << std::endl;
-    
 
     //detect obstacles
     bool LeftObstacle = psValues[0] < 500.0;
@@ -493,28 +396,21 @@ Obstacle DetectObstacles(Robot *robot, DistanceSensor *LDS, DistanceSensor *FDS,
 
 void PrintInformation(Robot *robot, DistanceSensor *LDS, DistanceSensor *FDS, DistanceSensor *RDS, GPS *gps, Compass *compass, int step)
 {
-    //const double *gpsValue = gps->getValues();
-    //std::cout << "gpsValue0: " << gpsValue[0] << std::endl;
-    //std::cout << "gpsValue2: " << gpsValue[2] << std::endl;
-
+    //get current row and column location
     Location CurrentLocation = GetLocation(robot, gps);
-    //std::cout << "row: " << CurrentLocation.Row << std::endl;
-    //std::cout << "col: " << CurrentLocation.Col << std::endl;
 
     const double *comValue = compass->getValues();
-    double bearing = GetBearing(comValue);
-    char heading = GetHeading(bearing);
+    double bearing = GetBearing(comValue);         //get current bearing
+    char heading = GetHeading(bearing);            //convert bearing into a heading
 
-    Obstacle CurrentObstacles = DetectObstacles(robot, LDS, FDS, RDS);
-    //std::cout << current.LeftWall << "  " << current.FrontWall << "  " << current.RightWall  << std::endl;
-
-
+    Obstacle CurrentObstacles = DetectObstacles(robot, LDS, FDS, RDS); //detect obstacles
 
     std::cout << "Step: " << std::setfill('0') << std::setw(2) << step << ", Row: " << CurrentLocation.Row << ", Column: " << CurrentLocation.Col << ", Heading: " << heading << ", Left Wall: " << CurrentObstacles.LeftWall << ", Front Wall: " << CurrentObstacles.FrontWall << ", Right Wall: " << CurrentObstacles.RightWall << std::endl;
     
     return;
 }
 
+//function to convert quantitative bearing into qualitative heading
 char GetHeading(double bearing)
 {
     char heading = ' ';
@@ -542,44 +438,7 @@ char GetHeading(double bearing)
     return heading;
 }
 
-/*
-double round(double number, double round)
-{
-    double roundedNumber = 0;
-
-    if ((std::fmod(number,round)) < round/2)
-    {
-        roundedNumber = number - (std::fmod(number,round));
-    }
-    else
-    {
-    	roundedNumber = number - (std::fmod(number,round)) + round;
-    }
-
-	return roundedNumber;
-}*/
 
 
-/*
-go forward
 
-// All the webots classes are defined in the "webots" namespace
-using namespace webots;
-
-int main(int argc, char **argv) {
- Robot *robot = new Robot();
-
- // get the motor devices
- Motor *leftMotor = robot->getMotor("left wheel motor");
- Motor *rightMotor = robot->getMotor("right wheel motor");
- // set the target position of the motors
- leftMotor->setPosition(10.0);
- rightMotor->setPosition(10.0);
-
- while (robot->step(TIME_STEP) != -1);
-
- delete robot;
-
- return 0;
-}
-
+*/
