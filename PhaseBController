@@ -1,0 +1,295 @@
+#include <fstream>
+#include <iostream>
+#include <stdio.h>
+#include <stdlib.h>
+#include <Windows.h>
+#include <iomanip>
+#include <string>
+#include <cmath>
+#include <math.h>
+#include <ctgmath>
+
+#define MAP_FILE_NAME "../../Map.txt"
+
+void printArray(char map[11][38]);
+void printHorizontal(int array[6][9]);
+void DetermineStartLocation(char map[11][38]);
+void GetHorizontalWalls(char map[11][38], int HorizontalWall[6][9]);
+void GetVerticalWalls(char map[11][38], int VerticalWall[5][10]);
+void printVertical(int array[5][10]);
+void FloodFill(int CellValues[5][9],  int HorizontalWall[6][9], int VerticalWall[5][10]);
+void printCells(int array[5][9]);
+
+
+
+int main()
+{
+    //declare input file stream
+    std::ifstream inFile(MAP_FILE_NAME);
+    
+    //copy contents of inFile to map
+    char map[11][38];
+
+    for (int row = 0; row < 11; row++)
+    {
+        for (int col = 0; col < 38; col++)
+        {
+            inFile.get(map[row][col]);
+        }
+    }
+
+
+    //make a 2d array representing the location of horizontal walls
+    int HorizontalWall[6][9] = {0};
+    GetHorizontalWalls(map, HorizontalWall);
+    //printHorizontal(HorizontalWall); 
+
+    //make a 2d array representing the location of vertical walls
+    int VerticalWall[5][10] = {0};
+    GetVerticalWalls(map, VerticalWall);
+    //printVertical(VerticalWall);
+
+    //initialise cell values for flood fill algorithm
+    int CellValues[5][9] = {0};
+
+    for (int row = 0; row < 5; row++)
+    {
+        for (int col = 0; col < 9; col++)
+        {
+            CellValues[row][col] = 45;
+        }
+
+    }
+
+    //printCells(CellValues);
+    FloodFill(CellValues,  HorizontalWall, VerticalWall);
+    printCells(CellValues);
+
+
+
+
+
+    printArray(map);
+    DetermineStartLocation(map);
+
+    return 0;
+}
+
+
+
+
+
+void printArray(char map[11][38])
+{
+    for (int row = 0; row < 11; row++)
+    {
+        for (int col = 0; col < 38; col++)
+        {
+            std::cout << (map[row][col]);
+        }
+
+        std::cout << std::endl;
+    }
+}
+
+
+
+void printHorizontal(int array[6][9])
+//void printHorizontal(int* array)
+{
+    for (int row = 0; row < 6; row++)
+    {
+        for (int col = 0; col < 9; col++)
+        {
+            std::cout << (array[row][col]);
+        }
+
+        std::cout << std::endl;
+    }
+}
+
+void printCells(int array[5][9])
+{
+    for (int row = 0; row < 5; row++)
+    {
+        for (int col = 0; col < 9; col++)
+        {
+            std::cout << (array[row][col]) << " ";
+        }
+
+        std::cout << std::endl;
+    }
+}
+
+
+
+void DetermineStartLocation(char map[11][38])
+{
+
+    std::string StartingHeading = " ";
+
+    for (int row = 0; row < 11; row++)
+    {
+        for (int col = 0; col < 38; col++)
+        {
+            char info = map[row][col];
+            
+            if (info == '^')
+            {
+                StartingHeading = "north";
+            }
+            else if (info == '>')
+            {
+                StartingHeading = "east";
+            }
+            else if (info == 'v')
+            {
+                StartingHeading = "south";
+            }
+            else if (info == '<')
+            {
+                StartingHeading = "west";
+            }
+        }
+
+    }
+
+    std::cout << "Starting Heading: " << StartingHeading << std::endl;
+    return;
+}
+
+void GetHorizontalWalls(char map[11][38], int HorizontalWall[6][9])
+{
+
+    //iterate through the map array
+    for (int row = 0; row < 11; row++)
+    {
+        for (int col = 0; col < 34; col++)
+        {
+            if (map[row][col] == '-' && map[row][col+1] == '-' && map[row][col+2] == '-')
+            {
+                 //if there is a horizontal wall, convert the co-ordinates to the horizontal array and make 1
+                 int HorizontalWallCol = nearbyint((0.25454545)*(col+1) - (0.509090909));
+                 int HorizontalWallRow = nearbyint((0.5)*row);
+
+                 HorizontalWall[HorizontalWallRow][HorizontalWallCol] = 1;
+
+            }
+        }
+    }
+    
+
+}
+
+void GetVerticalWalls(char map[11][38], int VerticalWall[5][10])
+{
+    //iterate through the map array
+    for (int row = 0; row < 11; row++)
+    {
+        for (int col = 0; col < 37; col++)
+        {
+            if (map[row][col] == '|')
+            {
+                 //if there is a horizontal wall, convert the co-ordinates to the horizontal array and make 1
+                 int VerticalWallCol = nearbyint(0.25*col);
+                 int VerticalWallRow = nearbyint(0.5*row - 0.5);
+
+                 VerticalWall[VerticalWallRow][VerticalWallCol] = 1;
+
+            }
+        }
+    }
+}
+
+
+
+void printVertical(int array[5][10])
+//void printHorizontal(int* array)
+{
+    for (int row = 0; row < 5; row++)
+    {
+        for (int col = 0; col < 10; col++)
+        {
+            std::cout << (array[row][col]);
+        }
+
+        std::cout << std::endl;
+    }
+}
+
+
+void FloodFill(int CellValues[5][9],  int HorizontalWall[6][9], int VerticalWall[5][10])
+{
+
+    //Goal cell value = 0
+    CellValues[2][4] = 0;
+
+    //Current explroed value = 0
+    int CurrentExploredValue = 0;
+
+    //set maze changed to 1
+    int MazeChanged = 1;
+
+    while (MazeChanged != 0)
+    {
+        MazeChanged = 0;
+
+        for (int row = 0; row < 5; row++)
+        {
+            for (int col = 0; col < 9; col++)
+            {
+                if (CellValues[row][col] == CurrentExploredValue)
+                {
+                    //north
+                    if (HorizontalWall[row][col] == 0) //if the wall to the north doesn't exist
+                    {
+                        if (CellValues[row-1][col] == 45)  //if the cell value to the north is 45
+                        {
+                            CellValues[row-1][col] = CellValues[row][col] + 1; //change the cell value to the current value + 1
+                            MazeChanged = 1;
+                        }
+                    }
+
+                    //south
+                    if (HorizontalWall[row+1][col] == 0) //if the wall to the south doesn't exist
+                    {
+                        if (CellValues[row+1][col] == 45) //if the cell value to the south is 45
+                        {
+                            CellValues[row+1][col] = CellValues[row][col] + 1; //change cell value to the current value + 1
+                            MazeChanged = 1;
+                        }
+                    }
+
+                    //east
+                    if (VerticalWall[row][col+1] == 0) //if the wall to the east doesn't exist
+                    {
+                        if (CellValues[row][col+1] == 45) //if the cell value to the east is 45
+                        {
+                            CellValues[row][col+1] = CellValues[row][col] + 1; //change cell value to the current value + 1
+                            MazeChanged = 1;
+                        }
+                    }
+
+                    //west
+                    if (VerticalWall[row][col] == 0) //if the wall to the west doesn't exist
+                    {
+                        if (CellValues[row][col-1] == 45) //if the cell value to the west is 45
+                        {
+                            CellValues[row][col-1] = CellValues[row][col] + 1; //change cell value to the current value + 1
+                            MazeChanged = 1;
+                        }
+                    }
+
+
+
+                }
+            }
+
+        
+        }
+
+        CurrentExploredValue = CurrentExploredValue + 1;
+        //printCells(CellValues);
+    }
+
+}
