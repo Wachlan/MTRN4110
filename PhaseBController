@@ -8,18 +8,31 @@
 #include <cmath>
 #include <math.h>
 #include <ctgmath>
+#include <queue>
+#include <vector>
+#include <bits/stdc++.h>
+
 
 #define MAP_FILE_NAME "../../Map.txt"
 
+struct Location
+{
+    std::string Heading;
+    int Row;
+    int Col;
+};
+
 void printArray(char map[11][38]);
 void printHorizontal(int array[6][9]);
-void DetermineStartLocation(char map[11][38]);
+Location DetermineStartLocation(char map[11][38]);
 void GetHorizontalWalls(char map[11][38], int HorizontalWall[6][9]);
 void GetVerticalWalls(char map[11][38], int VerticalWall[5][10]);
 void printVertical(int array[5][10]);
 void FloodFill(int CellValues[5][9],  int HorizontalWall[6][9], int VerticalWall[5][10]);
 void printCells(int array[5][9]);
-
+//void FindPath(int CellValues[5][9], int HorizontalWall[6][9], int VerticalWall[5][10], char map[11][38], int StartingRow, int StartingCol, std::vector<int> &RowOrder, std::vector<int> &ColOrder);
+void FindPath(int CellValues[5][9], int HorizontalWall[6][9], int VerticalWall[5][10], char map[11][38], int StartingRow, int StartingCol, std::queue<int> &RowOrder, std::queue<int> &ColOrder);
+void PrintPath(int CurrentValue, std::queue<int> &RowOrder, std::queue<int> &ColOrder, char map[11][38]);
 
 
 int main()
@@ -37,6 +50,9 @@ int main()
             inFile.get(map[row][col]);
         }
     }
+
+    Location StartingLocation = DetermineStartLocation(map);
+    std::cout << StartingLocation.Row << "  " << StartingLocation.Col << "   " << StartingLocation.Heading << std::endl;
 
 
     //make a 2d array representing the location of horizontal walls
@@ -63,14 +79,17 @@ int main()
 
     //printCells(CellValues);
     FloodFill(CellValues,  HorizontalWall, VerticalWall);
-    printCells(CellValues);
 
 
+    std::queue<int> RowOrder;
+    std::queue<int> ColOrder;
+  
+    
+    FindPath(CellValues, HorizontalWall, VerticalWall, map, StartingLocation.Row, StartingLocation.Col, RowOrder, ColOrder);
 
+    PrintPath(16, RowOrder, ColOrder, map);
 
-
-    printArray(map);
-    DetermineStartLocation(map);
+    //printArray(map);
 
     return 0;
 }
@@ -83,7 +102,7 @@ void printArray(char map[11][38])
 {
     for (int row = 0; row < 11; row++)
     {
-        for (int col = 0; col < 38; col++)
+        for (int col = 0; col < 37; col++)
         {
             std::cout << (map[row][col]);
         }
@@ -123,10 +142,14 @@ void printCells(int array[5][9])
 
 
 
-void DetermineStartLocation(char map[11][38])
+Location DetermineStartLocation(char map[11][38])
 {
 
-    std::string StartingHeading = " ";
+    //std::string StartingHeading = " ";
+    int StartingRow = 0;
+    int StartingCol = 0;
+
+    Location Start;
 
     for (int row = 0; row < 11; row++)
     {
@@ -136,26 +159,53 @@ void DetermineStartLocation(char map[11][38])
             
             if (info == '^')
             {
-                StartingHeading = "north";
+                Start.Heading = "north";
+                StartingRow = row;
+                StartingCol = col;
             }
             else if (info == '>')
             {
-                StartingHeading = "east";
+                Start.Heading = "east";
+                StartingRow = row;
+                StartingCol = col;
             }
             else if (info == 'v')
             {
-                StartingHeading = "south";
+                Start.Heading = "south";
+                StartingRow = row;
+                StartingCol = col;
             }
             else if (info == '<')
             {
-                StartingHeading = "west";
+                Start.Heading = "west";
+                StartingRow = row;
+                StartingCol = col;
             }
         }
 
     }
 
-    std::cout << "Starting Heading: " << StartingHeading << std::endl;
-    return;
+    //the robot must start in 1 of 4 corners. Convert the map co-ordinates into row and column
+    if (StartingRow == 1)
+    {
+        Start.Row = 1;
+    }
+    else if (StartingRow == 9)
+    {
+        Start.Row = 4;
+    }
+
+    if (StartingCol == 2)
+    {
+        Start.Row = 0;
+    }
+    else if (StartingCol == 34)
+    {
+        Start.Row = 8;
+    }
+
+    //std::cout << "Starting Heading: " << StartingHeading << std::endl;
+    return Start;
 }
 
 void GetHorizontalWalls(char map[11][38], int HorizontalWall[6][9])
@@ -292,4 +342,142 @@ void FloodFill(int CellValues[5][9],  int HorizontalWall[6][9], int VerticalWall
         //printCells(CellValues);
     }
 
+}
+
+
+
+
+void FindPath(int CellValues[5][9], int HorizontalWall[6][9], int VerticalWall[5][10], char map[11][38], int StartingRow, int StartingCol, std::queue<int> &RowOrder, std::queue<int> &ColOrder)
+{
+    //int StartingValue = CellValues[StartingRow][StartingCol];
+    int CurrentValue = CellValues[StartingRow][StartingCol];
+    int row = StartingRow;
+    int col = StartingCol;
+
+
+    RowOrder.push(row);
+    ColOrder.push(col);
+
+    while (CurrentValue != 0) //keep going until the centre is reached
+    {
+
+        std::cout<<"Current Value: "<< CurrentValue << std::endl;
+        std::cout<<"row: "<< row << std::endl;
+        std::cout<<"col: "<< col << std::endl;
+
+
+        //north
+        if (HorizontalWall[row][col] == 0) //if the wall to the north doesn't exist
+        {
+            if (CellValues[row-1][col] == (CurrentValue-1))  //if the cell value to the north is one less than current
+            {
+                RowOrder.push(row-1);
+                ColOrder.push(col);
+                CurrentValue = CurrentValue - 1;
+                row = row - 1;
+                continue;
+                
+            }
+        }
+
+        //south
+        if (HorizontalWall[row+1][col] == 0) //if the wall to the south doesn't exist
+        {
+            if (CellValues[row+1][col] == (CurrentValue-1)) //if the cell value to the south is one less than current
+            {
+                RowOrder.push(row+1);
+                ColOrder.push(col);
+                CurrentValue = CurrentValue - 1;
+                row = row + 1;
+                continue;
+        
+            }
+        }
+
+        //east
+        if (VerticalWall[row][col+1] == 0) //if the wall to the east doesn't exist
+        {
+            if (CellValues[row][col+1] == (CurrentValue-1)) //if the cell value to the east is one less than current
+            {
+                RowOrder.push(row);
+                ColOrder.push(col+1);
+                CurrentValue = CurrentValue - 1;
+                col = col + 1;
+                continue;
+                            
+            }
+        }
+
+        //west
+        if (VerticalWall[row][col] == 0) //if the wall to the west doesn't exist
+        {
+            if (CellValues[row][col-1] == (CurrentValue-1)) //if the cell value to the west is one less than current
+            {
+                RowOrder.push(row);
+                ColOrder.push(col-1);
+                CurrentValue = CurrentValue - 1;
+                col = col - 1;
+                continue;
+        
+            }
+        }
+
+
+    }
+
+
+    return;
+}
+
+
+
+void PrintPath(int CurrentValue, std::queue<int> &RowOrder, std::queue<int> &ColOrder, char map[11][38])
+{
+
+    char path1[11][38];
+    std::copy(&map[0][0], &map[0][0]+11*38, &path1[0][0]);
+
+    //now the paths cell values are stored
+    while (!RowOrder.empty())
+    {
+        std::cout << "reached while loop" << std::endl;
+
+        int RowTop = RowOrder.front();
+        int ColTop = ColOrder.front();
+
+        std::cout << "RowTop: " << RowTop << "ColTop: " << ColTop << std::endl;
+
+        //convert this back to co-ordinates on the map
+        int MapRow = 2*RowTop + 1;
+        int MapCol = 4*ColTop + 2;
+
+
+        if (CurrentValue >= 20 && CurrentValue < 30)
+        {
+            int ones = CurrentValue % 10;
+            int tens = 2;
+            path1[MapRow][MapCol] = (char)tens + '0';
+            path1[MapRow][MapCol+1] = (char)ones + '0';
+        }
+        else if (CurrentValue >= 10 && CurrentValue < 20)
+        {
+            int ones = CurrentValue % 10;
+            int tens = 1;
+            path1[MapRow][MapCol] = (char)(tens + '0');
+            path1[MapRow][MapCol+1] = (char)(ones + '0');
+        }
+        else if (CurrentValue >= 0)
+        {
+            path1[MapRow][MapCol] = (char)(CurrentValue + '0');
+        }
+        
+
+        CurrentValue = CurrentValue - 1;
+        RowOrder.pop();
+        ColOrder.pop();
+
+    }
+
+    printArray(path1);
+    return;
 }
