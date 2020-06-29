@@ -31,8 +31,11 @@ void printVertical(int array[5][10]);
 void FloodFill(int CellValues[5][9],  int HorizontalWall[6][9], int VerticalWall[5][10]);
 void printCells(int array[5][9]);
 //void FindPath(int CellValues[5][9], int HorizontalWall[6][9], int VerticalWall[5][10], char map[11][38], int StartingRow, int StartingCol, std::vector<int> &RowOrder, std::vector<int> &ColOrder);
-void FindPath(int CellValues[5][9], int HorizontalWall[6][9], int VerticalWall[5][10], char map[11][38], int StartingRow, int StartingCol, std::queue<int> &RowOrder, std::queue<int> &ColOrder);
-void PrintPath(int CurrentValue, std::queue<int> &RowOrder, std::queue<int> &ColOrder, char map[11][38]);
+//void FindPath(int CellValues[5][9], int HorizontalWall[6][9], int VerticalWall[5][10], char map[11][38], int StartingRow, int StartingCol, std::queue<int> &RowOrder, std::queue<int> &ColOrder);
+//void FindPaths(int CellValues[5][9], int HorizontalWall[6][9], int VerticalWall[5][10], char map[11][38], int StartingRow, int StartingCol, std::queue<std::queue<int>> &KeepExploringRow, std::queue<std::queue<int>> &KeepExploringCol);
+//void PrintPath(int CurrentValue, std::queue<int> &RowOrder, std::queue<int> &ColOrder, char map[11][38]);
+std::queue<std::queue<int>> FindPaths(int CellValues[5][9], int HorizontalWall[6][9], int VerticalWall[5][10], char map[11][38], int StartingRow, int StartingCol, std::queue<std::queue<int>> &KeepExploringRow, std::queue<std::queue<int>> &KeepExploringCol);
+void PrintPaths(int CellValues[5][9], std::queue<std::queue<int>> AllPaths, char map[11][38]);
 
 
 int main()
@@ -81,13 +84,24 @@ int main()
     FloodFill(CellValues,  HorizontalWall, VerticalWall);
 
 
-    std::queue<int> RowOrder;
-    std::queue<int> ColOrder;
+    //std::queue<int> RowOrder;
+    //std::queue<int> ColOrder;
   
     
-    FindPath(CellValues, HorizontalWall, VerticalWall, map, StartingLocation.Row, StartingLocation.Col, RowOrder, ColOrder);
+    //FindPath(CellValues, HorizontalWall, VerticalWall, map, StartingLocation.Row, StartingLocation.Col, RowOrder, ColOrder);
 
-    PrintPath(16, RowOrder, ColOrder, map);
+    std::queue<std::queue<int>> KeepExploringRow;
+    std::queue<std::queue<int>> KeepExploringCol;
+
+    
+    std::queue<std::queue<int>> AllPaths = FindPaths(CellValues, HorizontalWall, VerticalWall, map, StartingLocation.Row, StartingLocation.Col, KeepExploringRow, KeepExploringCol);
+
+
+    //PrintPath(CellValues[StartingLocation.Row][StartingLocation.Col], RowOrder, ColOrder, map);
+    //PrintPath(16, AllPaths, map);
+    PrintPaths(CellValues, AllPaths, map);
+
+
 
     //printArray(map);
 
@@ -346,24 +360,76 @@ void FloodFill(int CellValues[5][9],  int HorizontalWall[6][9], int VerticalWall
 
 
 
-
-void FindPath(int CellValues[5][9], int HorizontalWall[6][9], int VerticalWall[5][10], char map[11][38], int StartingRow, int StartingCol, std::queue<int> &RowOrder, std::queue<int> &ColOrder)
+std::queue<std::queue<int>> FindPaths(int CellValues[5][9], int HorizontalWall[6][9], int VerticalWall[5][10], char map[11][38], int StartingRow, int StartingCol, std::queue<std::queue<int>> &KeepExploringRow, std::queue<std::queue<int>> &KeepExploringCol)
+//void FindPaths(int CellValues[5][9], int HorizontalWall[6][9], int VerticalWall[5][10], char map[11][38], int StartingRow, int StartingCol, std::queue<std::queue<int>> &KeepExploringRow, std::queue<std::queue<int>> &KeepExploringCol)
 {
-    //int StartingValue = CellValues[StartingRow][StartingCol];
-    int CurrentValue = CellValues[StartingRow][StartingCol];
+
+    std::queue<std::queue<int>> AllPaths;
+
+    //int CurrentValue = CellValues[StartingRow][StartingCol];
     int row = StartingRow;
     int col = StartingCol;
+
+    std::queue<int> RowOrder;
+    std::queue<int> ColOrder;
 
 
     RowOrder.push(row);
     ColOrder.push(col);
 
+
+    KeepExploringRow.push(RowOrder);
+    KeepExploringCol.push(ColOrder);
+
+
+    while (!KeepExploringRow.empty())
+    //for (int i = 0; i < 20; i++)
+    {
+        std::queue<int> RowOrder = KeepExploringRow.front();
+        std::queue<int> ColOrder = KeepExploringCol.front();
+
+        KeepExploringRow.pop();
+        KeepExploringCol.pop();
+
+        int CurrentValue = CellValues[RowOrder.back()][ColOrder.back()];
+
+
+        if (CurrentValue == 0)
+        {
+            AllPaths.push(RowOrder);
+            AllPaths.push(ColOrder);
+            continue;
+            std::cout << "path pushd onto all paths" << std::endl;
+        }
+
+        else
+        {
+            row = RowOrder.back();
+            col = ColOrder.back();
+        }
+
+
+
     while (CurrentValue != 0) //keep going until the centre is reached
+    //for (int i = 0; i < 20; i++)
     {
 
         std::cout<<"Current Value: "<< CurrentValue << std::endl;
         std::cout<<"row: "<< row << std::endl;
         std::cout<<"col: "<< col << std::endl;
+
+        /*if (CurrentValue == 0)
+        {
+            AllPaths.push(RowOrder);
+            AllPaths.push(ColOrder);
+            break;
+            std::cout << "path pushed onto all paths" << std::endl;
+        }*/
+
+        int north = 0;
+        int south = 0;
+        int east = 0;
+        int west = 0;
 
 
         //north
@@ -371,11 +437,7 @@ void FindPath(int CellValues[5][9], int HorizontalWall[6][9], int VerticalWall[5
         {
             if (CellValues[row-1][col] == (CurrentValue-1))  //if the cell value to the north is one less than current
             {
-                RowOrder.push(row-1);
-                ColOrder.push(col);
-                CurrentValue = CurrentValue - 1;
-                row = row - 1;
-                continue;
+                north = 1;
                 
             }
         }
@@ -385,11 +447,7 @@ void FindPath(int CellValues[5][9], int HorizontalWall[6][9], int VerticalWall[5
         {
             if (CellValues[row+1][col] == (CurrentValue-1)) //if the cell value to the south is one less than current
             {
-                RowOrder.push(row+1);
-                ColOrder.push(col);
-                CurrentValue = CurrentValue - 1;
-                row = row + 1;
-                continue;
+                south = 1;
         
             }
         }
@@ -399,11 +457,7 @@ void FindPath(int CellValues[5][9], int HorizontalWall[6][9], int VerticalWall[5
         {
             if (CellValues[row][col+1] == (CurrentValue-1)) //if the cell value to the east is one less than current
             {
-                RowOrder.push(row);
-                ColOrder.push(col+1);
-                CurrentValue = CurrentValue - 1;
-                col = col + 1;
-                continue;
+                east = 1;
                             
             }
         }
@@ -413,26 +467,186 @@ void FindPath(int CellValues[5][9], int HorizontalWall[6][9], int VerticalWall[5
         {
             if (CellValues[row][col-1] == (CurrentValue-1)) //if the cell value to the west is one less than current
             {
-                RowOrder.push(row);
-                ColOrder.push(col-1);
-                CurrentValue = CurrentValue - 1;
-                col = col - 1;
-                continue;
+                west = 1;
         
             }
         }
+        
+        if (north + south + east + west == 1) //only 1 direction to go- don't duplicate
+        {
+            if (north == 1)
+            {
+                RowOrder.push(row-1);
+                ColOrder.push(col);
 
+                //KeepExploringRow.push(RowOrder);
+                //KeepExploringCol.push(ColOrder);
+                CurrentValue = CurrentValue - 1;
+                row = row - 1;
+                continue;
+            }
+
+            if (south == 1)
+            {
+                RowOrder.push(row+1);
+                ColOrder.push(col);
+
+                //KeepExploringRow.push(RowOrder);
+                //KeepExploringCol.push(ColOrder);
+                //CurrentValue = CurrentValue - 1;
+                row = row + 1;
+                //continue;
+            }
+
+            if (east == 1)
+            {
+                RowOrder.push(row);
+                ColOrder.push(col+1);
+
+                //KeepExploringRow.push(RowOrder);
+                //KeepExploringCol.push(ColOrder);
+                //CurrentValue = CurrentValue - 1;
+                col = col + 1;
+                //continue;
+            }
+
+            if (west == 1)
+            {
+                RowOrder.push(row);
+                ColOrder.push(col-1);
+
+                //KeepExploringRow.push(RowOrder);
+                //KeepExploringCol.push(ColOrder);
+                //CurrentValue = CurrentValue - 1;
+                col = col - 1;
+                //continue;
+            }
+
+            CurrentValue = CurrentValue - 1;
+            continue;
+
+        }
+
+        //multiple paths; need to duplicate path
+        if (north + south + east + west > 1)
+        {
+            std::queue<int> NewRowPath;
+            std::queue<int> NewColPath;
+
+            if (north == 1)
+            {
+                //std::queue<int> NewRowPath = RowOrder;
+                //std::queue<int> NewColPath = ColOrder;
+
+                NewRowPath = RowOrder;
+                NewColPath = ColOrder;
+
+                NewRowPath.push(row-1);
+                NewColPath.push(col);
+
+                KeepExploringRow.push(NewRowPath);
+                KeepExploringCol.push(NewColPath);
+                
+                std::cout<<"Duplicate path created" << std::endl;
+            }
+
+            if (south == 1)
+            {
+                //std::queue<int> NewRowPath = RowOrder;
+                //std::queue<int> NewColPath = ColOrder;
+
+                NewRowPath = RowOrder;
+                NewColPath = ColOrder;
+
+                NewRowPath.push(row+1);
+                NewColPath.push(col);
+
+                KeepExploringRow.push(NewRowPath);
+                KeepExploringCol.push(NewColPath);
+
+                std::cout<<"Duplicate path created" << std::endl;
+            }
+
+            if (east == 1)
+            {
+                //std::queue<int> NewRowPath = RowOrder;
+                //std::queue<int> NewColPath = ColOrder;
+
+                NewRowPath = RowOrder;
+                NewColPath = ColOrder;
+
+                NewRowPath.push(row);
+                NewColPath.push(col+1);
+
+                KeepExploringRow.push(NewRowPath);
+                KeepExploringCol.push(NewColPath);
+
+                std::cout<<"Duplicate path created" << std::endl;
+            }
+
+            if (west == 1)
+            {
+                //std::queue<int> NewRowPath = RowOrder;
+                //std::queue<int> NewColPath = ColOrder;
+
+                NewRowPath = RowOrder;
+                NewColPath = ColOrder;
+
+                NewRowPath.push(row);
+                NewColPath.push(col-1);
+
+                KeepExploringRow.push(NewRowPath);
+                KeepExploringCol.push(NewColPath);
+
+                std::cout<<"Duplicate path created" << std::endl;
+            }
+
+            CurrentValue = CurrentValue - 1;
+            break;
+
+        }
 
     }
 
+        //AllPaths.push(RowOrder);
+        //AllPaths.push(ColOrder);
+        if (CurrentValue == 0)
+        {
+            AllPaths.push(RowOrder);
+            AllPaths.push(ColOrder);
+            std::cout << "path pushd onto all paths" << std::endl;
 
-    return;
+            continue;
+        }
+    }
+
+
+    return AllPaths;
 }
 
 
 
-void PrintPath(int CurrentValue, std::queue<int> &RowOrder, std::queue<int> &ColOrder, char map[11][38])
+
+//void PrintPath(int CurrentValue, std::queue<std::queue<int>> AllPaths, char map[11][38])
+void PrintPaths(int CellValues[5][9], std::queue<std::queue<int>> AllPaths, char map[11][38])
+
 {
+    //std::cout << "print paths called" <<std::endl;
+    while (!AllPaths.empty())
+    //for(int i = 0; i < 5; i++)
+    {
+    std::queue<int> RowOrder = AllPaths.front();
+    AllPaths.pop();
+    std::queue<int> ColOrder = AllPaths.front();
+    AllPaths.pop();
+
+    //get rid of the first number to display the robot
+    RowOrder.pop();
+    ColOrder.pop();
+
+    int CurrentValue = CellValues[RowOrder.front()][ColOrder.front()];
+    std::cout << "Current value: " << CurrentValue <<std::endl;
+
 
     char path1[11][38];
     std::copy(&map[0][0], &map[0][0]+11*38, &path1[0][0]);
@@ -440,12 +654,12 @@ void PrintPath(int CurrentValue, std::queue<int> &RowOrder, std::queue<int> &Col
     //now the paths cell values are stored
     while (!RowOrder.empty())
     {
-        std::cout << "reached while loop" << std::endl;
+        //std::cout << "reached while loop" << std::endl;
 
         int RowTop = RowOrder.front();
         int ColTop = ColOrder.front();
 
-        std::cout << "RowTop: " << RowTop << "ColTop: " << ColTop << std::endl;
+        //std::cout << "RowTop: " << RowTop << "ColTop: " << ColTop << std::endl;
 
         //convert this back to co-ordinates on the map
         int MapRow = 2*RowTop + 1;
@@ -479,5 +693,10 @@ void PrintPath(int CurrentValue, std::queue<int> &RowOrder, std::queue<int> &Col
     }
 
     printArray(path1);
+    std::cout << "paths printed" <<std::endl;
+    }
+
+    
     return;
 }
+
