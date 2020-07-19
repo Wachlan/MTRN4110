@@ -3,16 +3,118 @@ import numpy as np
 import matplotlib.pyplot as plt
 %matplotlib inline
 
-MazeImgBGR = cv2.imread('Maze.png')
-MazeImgRGB = cv2.cvtColor(MazeImgBGR, cv2.COLOR_BGR2RGB)
-MazeImgHSV = cv2.cvtColor(MazeImgBGR, cv2.COLOR_BGR2HSV)
-plt.imshow(MazeImgRGB)
+
+#Function to find the centre of a cornerstone, given a region of the image
+def FindCornerStoneCentre(StartingRow, EndingRow, StartingCol, EndingCol, MazeImgGray):
+    Coordinates = []
+    
+    LowestRow = 0
+    LowestCol = 0
+    HighestRow = 0
+    HighestCol = 0
+
+    for row in range(StartingRow, EndingRow):
+        for col in range(StartingCol, EndingCol):
+            pixel = MazeImgGray[row,col]
+            if pixel == 0:
+                continue
+            else:
+                if LowestRow == 0:
+                    LowestRow = row
+                if LowestCol == 0:
+                    LowestCol = col
+                if row > HighestRow:
+                    HighestRow = row
+                if col > HighestCol:
+                    HighestCol = col
+                
+    CentreRow = int((LowestRow + HighestRow)/2)
+    CentreCol = int((LowestCol + HighestCol)/2)
+    
+    Coordinates.append(CentreRow)
+    Coordinates.append(CentreCol)
+    
+    return Coordinates
+    
+##############################################################################################################################  
+
+MazeImgBGR = cv2.imread('Maze.png')                                       #read image
+MazeImgRGB = cv2.cvtColor(MazeImgBGR, cv2.COLOR_BGR2RGB)                  #get RGB version
+MazeImgShowCornerstones = MazeImgRGB
+MazeImgHSV = cv2.cvtColor(MazeImgBGR, cv2.COLOR_BGR2HSV)                  #get HSV version
+plt.imshow(MazeImgRGB)                                                    #show RGB version
+
+
 #plt.imshow(MazeImgHSV)
 
-HSVLow = np.array([205,229,0])
+HSVLow = np.array([130,229,0])
 HSVHigh = np.array([229,255,255])
 
 mask = cv2.inRange(MazeImgHSV, HSVLow, HSVHigh)
-MazeCorners = cv2.bitwise_and(MazeImgRGB, MazeImgRGB, mask=mask)
+MazeCorners = cv2.bitwise_and(MazeImgShowCornerstones, MazeImgShowCornerstones, mask=mask)
 
-plt.imshow(MazeCorners)
+MazeImgGray = cv2.cvtColor(MazeCorners, cv2.COLOR_RGB2GRAY)                #get gray version
+#(thresh, MazeImgBinary) = cv2.threshold(MazeImgGray, 127, 255, cv2.THRESH_BINARY) #get binary version
+
+
+#Find the centres of the cornerstones
+TopLeft = FindCornerStoneCentre(0, 375, 0, 338, MazeImgGray)
+BottomLeft = FindCornerStoneCentre(375, 750, 0, 338, MazeImgGray)
+TopRight = FindCornerStoneCentre(0, 375, 1012, 1350, MazeImgGray)
+BottomRight = FindCornerStoneCentre(375, 750, 1012, 1350, MazeImgGray)
+
+cv2.rectangle(MazeImgShowCornerstones, (TopLeft[1]-10, TopLeft[0]-10), (TopLeft[1]+10, TopLeft[0]+10), (0,0,255), 2)
+cv2.rectangle(MazeImgShowCornerstones, (BottomLeft[1]-10, BottomLeft[0]-10), (BottomLeft[1]+10, BottomLeft[0]+10), (0,0,255), 2)
+cv2.rectangle(MazeImgShowCornerstones, (TopRight[1]-10, TopRight[0]-10), (TopRight[1]+10, TopRight[0]+10), (0,0,255), 2)
+cv2.rectangle(MazeImgShowCornerstones, (BottomRight[1]-10, BottomRight[0]-10), (BottomRight[1]+10, BottomRight[0]+10), (0,0,255), 2)
+
+plt.imshow(MazeImgShowCornerstones)
+
+PerspectivePoints1 = np.float32([[TopLeft[1],TopLeft[0]],[BottomLeft[1],BottomLeft[0]],[TopRight[1],TopRight[0]],[BottomRight[1],BottomRight[0]]])
+PerspectivePoints2 = np.float32([[0,0],[0,500],[900,0],[900,500]])
+
+H = cv2.getPerspectiveTransform(PerspectivePoints1,PerspectivePoints2)
+
+MazeImgTransformed = cv2.warpPerspective(MazeImgRGB, H, (900,500))
+plt.imshow(MazeImgTransformed)
+
+############################################################################################################################
+#get internal walls
+
+HSVLow = np.array([220,205,0])
+HSVHigh = np.array([240,255,255])
+
+mask = cv2.inRange(MazeImgTransformed, HSVLow, HSVHigh)
+MazeWalls = cv2.bitwise_and(MazeImgTransformed, MazeImgTransformed, mask=mask)
+
+#plt.imshow(MazeWalls)
+
+
+#MazeWallsGray = MazeWalls[:,:,2]                #get gray version
+#(thresh, MazeWallsBinary) = cv2.threshold(MazeWallsGray, 200, 255, cv2.THRESH_BINARY) #get binary version
+
+#prepare kernel
+kernel = np.ones((3,3), np.uint8)
+
+for i in range(8):
+#    MazeWalls = cv2.morphologyEx(MazeWalls, cv2.MORPH_CLOSE, kernel)
+    MazeWalls = cv2.dilate(MazeWalls, kernel, iterations = i)
+    MazeWalls = cv2.erode(MazeWalls, kernel, iterations = i)
+
+BlurKernel = np.ones((5,5),np.float32)/25
+MazeWalls = cv2.filter2D(MazeWalls,-1,BlurKernel)
+
+MazeWallsGray = MazeWalls[:,:,2]                #get gray version
+(thresh, MazeWallsBinary) = cv2.threshold(MazeWallsGray, 100, 250, cv2.THRESH_BINARY) #get binary version   
+
+for row in range(500):
+    for col in range(900):
+        pixel = MazeWallsBinary[row,col]
+        if pixel == 0:
+            continue
+        else:
+            MazeImgTransformed[row,col] = [3,253,254]
+            
+            
+
+plt.imshow(MazeImgTransformed)
