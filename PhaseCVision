@@ -5,11 +5,12 @@ import copy
 %matplotlib inline
 
 
-MAZE_FILE_NAME = "../Maze.png"
-ROBOT_FILE_NAME = "../Robot.png"
-MAP_FILE_NAME = "../MapFound.txt"
+MAZE_FILE_NAME = "../Maze_2.png"
+ROBOT_FILE_NAME = "../Robot_2.png"
+MAP_FILE_NAME = "../MapFound4.txt"
 
-
+def myround(n):
+    return n + (1 - n) % 1
 
 #Function to find the centre of a cornerstone, given a region of the image
 def FindCentre(StartingRow, EndingRow, StartingCol, EndingCol, MazeCorners):
@@ -171,11 +172,12 @@ MazeWallsHSV = cv2.cvtColor(MazeWalls, cv2.COLOR_RGB2HSV)                  #get 
 #plt.imshow(MazeWallsHSV)
 
 
-#HSVLow = np.array([220,200,50])
-#HSVHigh = np.array([240,230,200])
+#HSVLow = np.array([14,43,210])
+#HSVHigh = np.array([30,118,255])
 
-HSVLow = np.array([14,43,220])
-HSVHigh = np.array([255,118,255])
+
+HSVLow = np.array([14,21,219])
+HSVHigh = np.array([30,165,255])
 
 mask = cv2.inRange(MazeWallsHSV, HSVLow, HSVHigh)
 MazeWalls = cv2.bitwise_and(MazeWalls, MazeWalls, mask=mask)
@@ -215,9 +217,9 @@ HSVHigh = np.array([136,125,220])
 mask = cv2.inRange(RobotInMazeHSV, HSVLow, HSVHigh)
 RobotInMaze = cv2.bitwise_and(RobotInMaze, RobotInMaze, mask=mask)
 
-for i in range(5):
-    MazeWalls = cv2.erode(MazeWalls, kernel, iterations = i)
-    MazeWalls = cv2.dilate(MazeWalls, kernel, iterations = i)
+#for i in range(5):
+ #   MazeWalls = cv2.erode(MazeWalls, kernel, iterations = i)
+   # MazeWalls = cv2.dilate(MazeWalls, kernel, iterations = i)
 
 plt.imshow(RobotInMaze)
 
@@ -245,12 +247,20 @@ for index in range(len(Location)):    # iterating over Location list
 #find centre of robot
 if RobotIndex == 0:
     RobotCentre = FindCentre(10, 90, 10, 90, RobotInMaze)
+    RobotMapRow = 0
+    RobotMapCol = 0
 elif RobotIndex == 1:
     RobotCentre = FindCentre(410, 490, 10, 90, RobotInMaze)
+    RobotMapRow = 9
+    RobotMapCol = 0
 elif RobotIndex == 2:
     RobotCentre = FindCentre(10, 90, 810, 890, RobotInMaze)
+    RobotMapRow = 0
+    RobotMapCol = 8
 elif RobotIndex == 3:
     RobotCentre = FindCentre(410, 490, 810, 890, RobotInMaze)
+    RobotMapRow = 9
+    RobotMapCol = 8
     
 print("robot centre is ")
 print(RobotCentre)
@@ -301,17 +311,162 @@ font = cv2.FONT_ITALIC
 
 if heading == 'N':
     cv2.arrowedLine(MazeImgBlueWalls, (RobotCentre[0],RobotCentre[1]+20), (RobotCentre[0],RobotCentre[1]-20), (155,1,171), (3), 8, 0, 0.5)
+    RobotMapSymbol = '^'
 if heading == 'S':
     cv2.arrowedLine(MazeImgBlueWalls, (RobotCentre[0],RobotCentre[1]-20), (RobotCentre[0],RobotCentre[1]+20), (155,1,171), (3), 8, 0, 0.5)
+    RobotMapSymbol = 'v'
 if heading == 'E':
     cv2.arrowedLine(MazeImgBlueWalls, (RobotCentre[0]-20,RobotCentre[1]), (RobotCentre[0]+20,RobotCentre[1]), (155,1,171), (3), 8, 0, 0.5)
+    RobotMapSymbol = '>'
 if heading == 'W':
     #cv2.arrowedLine(MazeImgBlueWalls, (RobotCentre[0],RobotCentre[1]+20), (RobotCentre[0],RobotCentre[1]-20), (155,1,171), (3), 8, 0, 0.5)
     cv2.putText(MazeImgBlueWalls,"<",(RobotCentre[0],RobotCentre[1]), font, 1, (0,0,255), 3, cv2.LINE_AA)
-
+    RobotMapSymbol = '<'
+    
 #plot the image
 plt.imshow(MazeImgBlueWalls)
 
 
+############################################################################################################################
+#detect walls
+
+MazeWallsGray = cv2.cvtColor(MazeWalls, cv2.COLOR_RGB2GRAY)
+(thresh, MazeWallsBW) = cv2.threshold(MazeWallsGray, 128, 255, cv2.THRESH_BINARY_INV)
+ 
 
 
+for i in range(1):
+    MazeWallsBW = cv2.dilate(MazeWallsBW, kernel, iterations = i)
+    MazeWallsBW = cv2.erode(MazeWallsBW, kernel, iterations = i)
+    
+    
+HorizontalWalls = []
+VerticalWalls = []
+
+plt.imshow(MazeWallsBW)
+
+
+############################################################################################################################
+#blob detector
+#Setup SimpleBlobDetector parameters
+params = cv2.SimpleBlobDetector_Params()
+
+# Filter by Area.
+params.filterByArea = True
+params.minArea = 400
+params.maxArea = 2000
+
+params.minThreshold = 0
+params.maxThreshold = 100
+
+# Filter by Inertia
+params.filterByInertia = True
+params.minInertiaRatio = 0
+params.maxInertiaRatio = 0.8
+
+params.filterByConvexity = True
+params.minConvexity = 0.5
+
+
+
+# Create a detector with the parameters
+detector = cv2.SimpleBlobDetector_create(params)
+
+keypoints = detector.detect(MazeWallsBW)
+
+
+
+
+#im_with_keypoints = cv2.drawKeypoints(MazeWallsGray, keypoints, np.array([]), (0,0,255), cv2.DRAW_MATCHES_FLAGS_DRAW_RICH_KEYPOINTS)
+# Show keypoints
+#plt.imshow(im_with_keypoints)
+
+
+w = 9
+h = 10
+WallMatrix = [[0 for x in range(w)] for y in range(h)] 
+
+for i in range(len(keypoints)):
+    
+    #col = int(keypoints[i].pt[0] / 100)
+    #row = int(keypoints[i].pt[1] / 50)
+
+    
+    col = int(np.floor(keypoints[i].pt[0] / 105))
+    row = int(np.floor(keypoints[i].pt[1] / 55))
+    
+    
+    
+    #print(row)
+    #print(col)
+    WallMatrix[row][col] = 1
+    
+#print(WallMatrix)
+print(RobotMapRow)
+print(RobotMapCol)
+
+############################################################################################################################
+#write to file
+
+f= open(MAP_FILE_NAME,"w+")
+for row in range(11):  
+    if row == 0 or row == 10:
+        f.write(" --- --- --- --- --- --- --- --- --- ")
+        f.write("\n")
+        continue
+        
+    if row == RobotMapRow:
+        for col in range(9):
+                          
+            if col == 0 and RobotMapCol == 0:
+                f.write("| " + RobotMapSymbol + " ")
+                continue
+            elif col == 0 and RobotMapCol != 0:
+                f.write("|   ") 
+            if col == 8 and RobotMapCol == 8:
+                f.write(RobotMapSymbol + " |\n")
+                continue
+            elif col == 8 and RobotMapcol != 8:
+                f.write("|\n")
+                continue
+            WallValue = WallMatrix[row-1][col]
+            #print(col)
+            if col == 7 and RobotMapCol == 8 and WallValue == 0:
+                f.write("  ")
+            elif WallValue == 0:
+                f.write("    ")
+            if col == 7 and RobotMapCol == 8 and WallValue == 1:
+                f.write("| ")
+            elif WallValue == 1:
+                f.write("|   ")
+                
+    elif row%2 == 1:                           #if it's an odd row on the map, place vertical walls
+        for col in range(9):
+            if col == 0:
+                f.write("|   ")                  #if starting column, place left boundary
+                #col = col + 2
+            if col == 8:
+                f.write("|\n")
+                continue
+            WallValue = WallMatrix[row-1][col]
+            #print(col)
+            if WallValue == 0:
+                f.write("    ")
+            elif WallValue == 1:
+                f.write("|   ")
+            
+    if row%2 == 0:                          #if it's an even row, place horizontal walls
+        for col in range(10):
+            if col == 0:
+                f.write(" ")
+            if col == 9:
+                f.write("\n")
+                continue
+            WallValue = WallMatrix[row-1][col]
+            if WallValue == 0:
+                f.write("    ")
+            elif WallValue == 1:
+                f.write("--- ")
+
+
+f.close()
