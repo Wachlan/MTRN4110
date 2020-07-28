@@ -5,9 +5,9 @@ import copy
 %matplotlib inline
 
 
-MAZE_FILE_NAME = "../Maze_2.png"
-ROBOT_FILE_NAME = "../Robot_2.png"
-MAP_FILE_NAME = "../MapFound4.txt"
+MAZE_FILE_NAME = "../Maze.png"
+ROBOT_FILE_NAME = "../Robot.png"
+MAP_FILE_NAME = "../MapFound.txt"
 
 def myround(n):
     return n + (1 - n) % 1
@@ -27,7 +27,9 @@ def FindCentre(StartingRow, EndingRow, StartingCol, EndingCol, MazeCorners):
             if pixel[0] == 0 and pixel[1] == 0 and pixel[2] == 0:
                 continue
             else:
-                if LowestRow == 0:
+                if row < LowestRow and LowestRow != 0:
+                    LowestRow = row
+                elif LowestRow == 0:
                     LowestRow = row
                     #EndingRow = StartingRow + 20
                 if LowestCol == 0:
@@ -103,16 +105,16 @@ MazeImgBGR = cv2.imread(MAZE_FILE_NAME)                                       #r
 MazeImgRGB = cv2.cvtColor(MazeImgBGR, cv2.COLOR_BGR2RGB)                  #get RGB version
 MazeImgShowCornerstones = copy.deepcopy(MazeImgRGB)
 MazeImgHSV = cv2.cvtColor(MazeImgBGR, cv2.COLOR_BGR2HSV)                  #get HSV version
+plt.figure(figsize = (5,9))
 plt.imshow(MazeImgRGB)                                                    #show RGB version
 
 
 
-#HSVLow = np.array([130,160,0])
-#HSVHigh = np.array([229,255,255])
+#HSVLow = np.array([135,188,125])
+#HSVHigh = np.array([179,255,255])
 
-
-HSVLow = np.array([135,188,125])
-HSVHigh = np.array([179,255,255])
+HSVLow = np.array([139,190,101])
+HSVHigh = np.array([153,255,255])
 
 
 mask = cv2.inRange(MazeImgHSV, HSVLow, HSVHigh)
@@ -125,7 +127,9 @@ for i in range(3):
     MazeCorners = cv2.erode(MazeCorners, kernel, iterations = i)
     MazeCorners = cv2.dilate(MazeCorners, kernel, iterations = i)
 
-plt.imshow(MazeCorners) 
+    
+
+#plt.imshow(MazeCorners) 
 
 
 
@@ -146,6 +150,7 @@ cv2.rectangle(MazeImgShowCornerstones, (BottomLeft[1]-10, BottomLeft[0]-10), (Bo
 cv2.rectangle(MazeImgShowCornerstones, (TopRight[1]-10, TopRight[0]-10), (TopRight[1]+10, TopRight[0]+10), (19,245,237), 2)
 cv2.rectangle(MazeImgShowCornerstones, (BottomRight[1]-10, BottomRight[0]-10), (BottomRight[1]+10, BottomRight[0]+10), (19,245,237), 2)
 
+plt.figure(figsize = (5,9))
 plt.imshow(MazeImgShowCornerstones)
 
 
@@ -156,6 +161,8 @@ PerspectivePoints2 = np.float32([[0,0],[0,500],[900,0],[900,500]])
 H = cv2.getPerspectiveTransform(PerspectivePoints1,PerspectivePoints2)
 
 MazeImgTransformed = cv2.warpPerspective(MazeImgRGB, H, (900,500))
+
+plt.figure(figsize = (5,9))
 plt.imshow(MazeImgTransformed)
 
 
@@ -196,7 +203,8 @@ for row in range(500):
             MazeImgBlueWalls[row,col] = [3,253,254]
     
    
-#plt.imshow(MazeImgBlueWalls)
+plt.figure(figsize = (5,9))
+plt.imshow(MazeImgBlueWalls)
 
 
 
@@ -206,13 +214,14 @@ for row in range(500):
 
 RobotInMaze = copy.deepcopy(MazeImgTransformed)
 RobotInMazeHSV = cv2.cvtColor(RobotInMaze, cv2.COLOR_RGB2HSV)                  #get HSV version
+RobotPosHeading = copy.deepcopy(MazeImgBlueWalls)                            #to plot the robot location and heading
 
 
-#HSVLow = np.array([36,0,34])
-#HSVHigh = np.array([136,136,255])
+#HSVLow = np.array([36,0,126])
+#HSVHigh = np.array([136,125,220])
 
-HSVLow = np.array([36,0,126])
-HSVHigh = np.array([136,125,220])
+HSVLow = np.array([20,0,79])
+HSVHigh = np.array([117,170,200])
 
 mask = cv2.inRange(RobotInMazeHSV, HSVLow, HSVHigh)
 RobotInMaze = cv2.bitwise_and(RobotInMaze, RobotInMaze, mask=mask)
@@ -221,7 +230,9 @@ RobotInMaze = cv2.bitwise_and(RobotInMaze, RobotInMaze, mask=mask)
  #   MazeWalls = cv2.erode(MazeWalls, kernel, iterations = i)
    # MazeWalls = cv2.dilate(MazeWalls, kernel, iterations = i)
 
-plt.imshow(RobotInMaze)
+
+#plt.figure(figsize = (5,9))
+#plt.imshow(RobotInMaze)
 
 
 Location = []
@@ -247,7 +258,7 @@ for index in range(len(Location)):    # iterating over Location list
 #find centre of robot
 if RobotIndex == 0:
     RobotCentre = FindCentre(10, 90, 10, 90, RobotInMaze)
-    RobotMapRow = 0
+    RobotMapRow = 1
     RobotMapCol = 0
 elif RobotIndex == 1:
     RobotCentre = FindCentre(410, 490, 10, 90, RobotInMaze)
@@ -255,7 +266,7 @@ elif RobotIndex == 1:
     RobotMapCol = 0
 elif RobotIndex == 2:
     RobotCentre = FindCentre(10, 90, 810, 890, RobotInMaze)
-    RobotMapRow = 0
+    RobotMapRow = 1
     RobotMapCol = 8
 elif RobotIndex == 3:
     RobotCentre = FindCentre(410, 490, 810, 890, RobotInMaze)
@@ -268,12 +279,7 @@ print(RobotCentre)
 
     
 #represent location of the robot with a purple circle
-cv2.circle(MazeImgBlueWalls, (RobotCentre[0],RobotCentre[1]), 25, (155,1,171), 2)
-  
-    
-
-#plt.imshow(MazeImgBlueWalls)
-
+cv2.circle(RobotPosHeading, (RobotCentre[1],RobotCentre[0]), 25, (155,1,171), 2)
 
 ##########################################################################################################
 #detect robot Heading
@@ -302,29 +308,33 @@ cv2.aruco.drawDetectedMarkers(RobotImgRGB, markerCorners, markerIds)
 heading = FindHeading(markerCorners)
 print(heading)
 
-#print(int(markerCorners[0][0][2][0]))
-#print(int(markerCorners[0][0][2][1]))
 
 font = cv2.FONT_ITALIC
 
 #cv2.putText(MazeImgBlueWalls,".",(RobotCentre[0],RobotCentre[1]), font, 1, (0,0,255), 3, cv2.LINE_AA)
 
 if heading == 'N':
-    cv2.arrowedLine(MazeImgBlueWalls, (RobotCentre[0],RobotCentre[1]+20), (RobotCentre[0],RobotCentre[1]-20), (155,1,171), (3), 8, 0, 0.5)
+    cv2.arrowedLine(RobotPosHeading, (RobotCentre[1],RobotCentre[0]+20), (RobotCentre[1],RobotCentre[0]-20), (155,1,171), (3), 8, 0, 0.5)
     RobotMapSymbol = '^'
 if heading == 'S':
-    cv2.arrowedLine(MazeImgBlueWalls, (RobotCentre[0],RobotCentre[1]-20), (RobotCentre[0],RobotCentre[1]+20), (155,1,171), (3), 8, 0, 0.5)
+    cv2.arrowedLine(RobotPosHeading, (RobotCentre[1],RobotCentre[0]-20), (RobotCentre[1],RobotCentre[0]+20), (155,1,171), (3), 8, 0, 0.5)
     RobotMapSymbol = 'v'
 if heading == 'E':
-    cv2.arrowedLine(MazeImgBlueWalls, (RobotCentre[0]-20,RobotCentre[1]), (RobotCentre[0]+20,RobotCentre[1]), (155,1,171), (3), 8, 0, 0.5)
+    cv2.arrowedLine(RobotPosHeading, (RobotCentre[1]-20,RobotCentre[0]), (RobotCentre[1]+20,RobotCentre[0]), (155,1,171), (3), 8, 0, 0.5)
     RobotMapSymbol = '>'
 if heading == 'W':
-    #cv2.arrowedLine(MazeImgBlueWalls, (RobotCentre[0],RobotCentre[1]+20), (RobotCentre[0],RobotCentre[1]-20), (155,1,171), (3), 8, 0, 0.5)
-    cv2.putText(MazeImgBlueWalls,"<",(RobotCentre[0],RobotCentre[1]), font, 1, (0,0,255), 3, cv2.LINE_AA)
+    cv2.arrowedLine(RobotPosHeading, (RobotCentre[1]+20,RobotCentre[0]), (RobotCentre[1]-20,RobotCentre[0]), (155,1,171), (3), 8, 0, 0.5)
+    #cv2.arrowedLine(RobotPosHeading, (457,874), (457,834), (155,1,171), (3), 8, 0, 0.5)
+    
+    #cv2.putText(MazeImgBlueWalls,"<",(RobotCentre[1],RobotCentre[0]), font, 1, (0,0,255), 3, cv2.LINE_AA)
+    #cv2.putText(RobotPosHeading,"<",(874,457), font, 1, (0,0,255), 3, cv2.LINE_AA)
+
+    print("plottead the arrow")
     RobotMapSymbol = '<'
     
 #plot the image
-plt.imshow(MazeImgBlueWalls)
+plt.figure(figsize = (5,9))
+plt.imshow(RobotPosHeading)
 
 
 ############################################################################################################################
@@ -343,7 +353,7 @@ for i in range(1):
 HorizontalWalls = []
 VerticalWalls = []
 
-plt.imshow(MazeWallsBW)
+#plt.imshow(MazeWallsBW)
 
 
 ############################################################################################################################
@@ -402,8 +412,8 @@ for i in range(len(keypoints)):
     WallMatrix[row][col] = 1
     
 #print(WallMatrix)
-print(RobotMapRow)
-print(RobotMapCol)
+#print(RobotMapRow)
+#print(RobotMapCol)
 
 ############################################################################################################################
 #write to file
@@ -417,16 +427,16 @@ for row in range(11):
         
     if row == RobotMapRow:
         for col in range(9):
-                          
+            
+            #print("in here")
             if col == 0 and RobotMapCol == 0:
                 f.write("| " + RobotMapSymbol + " ")
-                continue
             elif col == 0 and RobotMapCol != 0:
                 f.write("|   ") 
             if col == 8 and RobotMapCol == 8:
                 f.write(RobotMapSymbol + " |\n")
                 continue
-            elif col == 8 and RobotMapcol != 8:
+            elif col == 8 and RobotMapCol != 8:
                 f.write("|\n")
                 continue
             WallValue = WallMatrix[row-1][col]
