@@ -9,8 +9,6 @@ MAZE_FILE_NAME = "../Maze.png"
 ROBOT_FILE_NAME = "../Robot.png"
 MAP_FILE_NAME = "../MapFound.txt"
 
-def myround(n):
-    return n + (1 - n) % 1
 
 #Function to find the centre of a cornerstone, given a region of the image
 def FindCentre(StartingRow, EndingRow, StartingCol, EndingCol, MazeCorners):
@@ -31,10 +29,8 @@ def FindCentre(StartingRow, EndingRow, StartingCol, EndingCol, MazeCorners):
                     LowestRow = row
                 elif LowestRow == 0:
                     LowestRow = row
-                    #EndingRow = StartingRow + 20
                 if LowestCol == 0:
                     LowestCol = col
-                    #EndingCol = StartingCol + 20
                 if row > HighestRow:
                     HighestRow = row
                 if col > HighestCol:
@@ -42,13 +38,7 @@ def FindCentre(StartingRow, EndingRow, StartingCol, EndingCol, MazeCorners):
                 
     CentreRow = int((LowestRow + HighestRow)/2)
     CentreCol = int((LowestCol + HighestCol)/2)
-    
-    #print(LowestRow)
-    ##print(HighestRow)
-    #print(LowestCol)
-    #print(HighestCol)
-    #print( )
-    
+       
     Coordinates.append(CentreRow)
     Coordinates.append(CentreCol)
     
@@ -74,15 +64,7 @@ def FindHeading(markerCorners):
 
     RobotBackX = int(markerCorners[0][0][2][0])
     RobotBackY = int(markerCorners[0][0][2][1])
-    
-    #print(RobotFrontX) 
-    #print(RobotBackX)
-    
-    #print(RobotFrontY)
-    #print(RobotBackY)
-
-
-    
+        
     XDifference = abs(RobotFrontX - RobotBackX)
     YDifference = abs(RobotFrontY - RobotBackY)
     
@@ -109,10 +91,6 @@ plt.figure(figsize = (5,9))
 plt.imshow(MazeImgRGB)                                                    #show RGB version
 
 
-
-#HSVLow = np.array([135,188,125])
-#HSVHigh = np.array([179,255,255])
-
 HSVLow = np.array([139,190,101])
 HSVHigh = np.array([153,255,255])
 
@@ -127,23 +105,12 @@ for i in range(3):
     MazeCorners = cv2.erode(MazeCorners, kernel, iterations = i)
     MazeCorners = cv2.dilate(MazeCorners, kernel, iterations = i)
 
-    
-
-#plt.imshow(MazeCorners) 
-
-
-
 
 #Find the centres of the cornerstones
 TopLeft = FindCentre(0, 375, 0, 338, MazeCorners)
 BottomLeft = FindCentre(375, 750, 0, 338, MazeCorners)
 TopRight = FindCentre(0, 375, 1012, 1350, MazeCorners)
 BottomRight = FindCentre(375, 750, 1012, 1350, MazeCorners)
-
-print(TopLeft)
-print(BottomLeft)
-print(TopRight)
-print(BottomRight)
 
 cv2.rectangle(MazeImgShowCornerstones, (TopLeft[1]-10, TopLeft[0]-10), (TopLeft[1]+10, TopLeft[0]+10), (19,245,237), 2)
 cv2.rectangle(MazeImgShowCornerstones, (BottomLeft[1]-10, BottomLeft[0]-10), (BottomLeft[1]+10, BottomLeft[0]+10), (19,245,237), 2)
@@ -152,8 +119,6 @@ cv2.rectangle(MazeImgShowCornerstones, (BottomRight[1]-10, BottomRight[0]-10), (
 
 plt.figure(figsize = (5,9))
 plt.imshow(MazeImgShowCornerstones)
-
-
 
 PerspectivePoints1 = np.float32([[TopLeft[1],TopLeft[0]],[BottomLeft[1],BottomLeft[0]],[TopRight[1],TopRight[0]],[BottomRight[1],BottomRight[0]]])
 PerspectivePoints2 = np.float32([[0,0],[0,500],[900,0],[900,500]])
@@ -176,22 +141,11 @@ MazeImgBlueWalls = copy.deepcopy(MazeImgTransformed)
 MazeWalls = copy.deepcopy(MazeImgTransformed)
 MazeWallsHSV = cv2.cvtColor(MazeWalls, cv2.COLOR_RGB2HSV)                  #get HSV version
 
-#plt.imshow(MazeWallsHSV)
-
-
-#HSVLow = np.array([14,43,210])
-#HSVHigh = np.array([30,118,255])
-
-
 HSVLow = np.array([14,21,219])
 HSVHigh = np.array([30,165,255])
 
 mask = cv2.inRange(MazeWallsHSV, HSVLow, HSVHigh)
 MazeWalls = cv2.bitwise_and(MazeWalls, MazeWalls, mask=mask)
-
-#prepare kernel
-#kernel = np.ones((3,3), np.uint8)
-
 
 #make the walls blue
 for row in range(500):
@@ -217,22 +171,11 @@ RobotInMazeHSV = cv2.cvtColor(RobotInMaze, cv2.COLOR_RGB2HSV)                  #
 RobotPosHeading = copy.deepcopy(MazeImgBlueWalls)                            #to plot the robot location and heading
 
 
-#HSVLow = np.array([36,0,126])
-#HSVHigh = np.array([136,125,220])
-
 HSVLow = np.array([20,0,79])
 HSVHigh = np.array([117,170,200])
 
 mask = cv2.inRange(RobotInMazeHSV, HSVLow, HSVHigh)
 RobotInMaze = cv2.bitwise_and(RobotInMaze, RobotInMaze, mask=mask)
-
-#for i in range(5):
- #   MazeWalls = cv2.erode(MazeWalls, kernel, iterations = i)
-   # MazeWalls = cv2.dilate(MazeWalls, kernel, iterations = i)
-
-
-#plt.figure(figsize = (5,9))
-#plt.imshow(RobotInMaze)
 
 
 Location = []
@@ -254,7 +197,6 @@ for index in range(len(Location)):    # iterating over Location list
         continue
 
 
-    
 #find centre of robot
 if RobotIndex == 0:
     RobotCentre = FindCentre(10, 90, 10, 90, RobotInMaze)
@@ -273,10 +215,6 @@ elif RobotIndex == 3:
     RobotMapRow = 9
     RobotMapCol = 8
     
-print("robot centre is ")
-print(RobotCentre)
-
-
     
 #represent location of the robot with a purple circle
 cv2.circle(RobotPosHeading, (RobotCentre[1],RobotCentre[0]), 25, (155,1,171), 2)
@@ -286,7 +224,6 @@ cv2.circle(RobotPosHeading, (RobotCentre[1],RobotCentre[0]), 25, (155,1,171), 2)
 
 RobotImgBGR = cv2.imread(ROBOT_FILE_NAME)                                       #read image
 RobotImgRGB = cv2.cvtColor(RobotImgBGR, cv2.COLOR_BGR2RGB)                  #get RGB version                                             #show RGB version
-
 
 
 #load predefined dictionary
@@ -300,18 +237,10 @@ markerCorners, markerIds, rejectedCandidates = cv2.aruco.detectMarkers(RobotImgR
 
 cv2.aruco.drawDetectedMarkers(RobotImgRGB, markerCorners, markerIds)
 
-#print(markerCorners)
-#print(markerIds)
-
-
 
 heading = FindHeading(markerCorners)
-print(heading)
-
 
 font = cv2.FONT_ITALIC
-
-#cv2.putText(MazeImgBlueWalls,".",(RobotCentre[0],RobotCentre[1]), font, 1, (0,0,255), 3, cv2.LINE_AA)
 
 if heading == 'N':
     cv2.arrowedLine(RobotPosHeading, (RobotCentre[1],RobotCentre[0]+20), (RobotCentre[1],RobotCentre[0]-20), (155,1,171), (3), 8, 0, 0.5)
@@ -324,12 +253,6 @@ if heading == 'E':
     RobotMapSymbol = '>'
 if heading == 'W':
     cv2.arrowedLine(RobotPosHeading, (RobotCentre[1]+20,RobotCentre[0]), (RobotCentre[1]-20,RobotCentre[0]), (155,1,171), (3), 8, 0, 0.5)
-    #cv2.arrowedLine(RobotPosHeading, (457,874), (457,834), (155,1,171), (3), 8, 0, 0.5)
-    
-    #cv2.putText(MazeImgBlueWalls,"<",(RobotCentre[1],RobotCentre[0]), font, 1, (0,0,255), 3, cv2.LINE_AA)
-    #cv2.putText(RobotPosHeading,"<",(874,457), font, 1, (0,0,255), 3, cv2.LINE_AA)
-
-    print("plottead the arrow")
     RobotMapSymbol = '<'
     
 #plot the image
@@ -344,7 +267,6 @@ MazeWallsGray = cv2.cvtColor(MazeWalls, cv2.COLOR_RGB2GRAY)
 (thresh, MazeWallsBW) = cv2.threshold(MazeWallsGray, 128, 255, cv2.THRESH_BINARY_INV)
  
 
-
 for i in range(1):
     MazeWallsBW = cv2.dilate(MazeWallsBW, kernel, iterations = i)
     MazeWallsBW = cv2.erode(MazeWallsBW, kernel, iterations = i)
@@ -353,7 +275,6 @@ for i in range(1):
 HorizontalWalls = []
 VerticalWalls = []
 
-#plt.imshow(MazeWallsBW)
 
 
 ############################################################################################################################
@@ -385,35 +306,16 @@ detector = cv2.SimpleBlobDetector_create(params)
 keypoints = detector.detect(MazeWallsBW)
 
 
-
-
-#im_with_keypoints = cv2.drawKeypoints(MazeWallsGray, keypoints, np.array([]), (0,0,255), cv2.DRAW_MATCHES_FLAGS_DRAW_RICH_KEYPOINTS)
-# Show keypoints
-#plt.imshow(im_with_keypoints)
-
-
 w = 9
 h = 10
 WallMatrix = [[0 for x in range(w)] for y in range(h)] 
 
 for i in range(len(keypoints)):
-    
-    #col = int(keypoints[i].pt[0] / 100)
-    #row = int(keypoints[i].pt[1] / 50)
-
-    
+        
     col = int(np.floor(keypoints[i].pt[0] / 105))
     row = int(np.floor(keypoints[i].pt[1] / 55))
-    
-    
-    
-    #print(row)
-    #print(col)
     WallMatrix[row][col] = 1
     
-#print(WallMatrix)
-#print(RobotMapRow)
-#print(RobotMapCol)
 
 ############################################################################################################################
 #write to file
