@@ -1,0 +1,1090 @@
+#include <fstream>
+#include <iostream>
+#include <stdio.h>
+#include <stdlib.h>
+#include <Windows.h>
+#include <iomanip>
+#include <string>
+#include <cmath>
+#include <math.h>
+#include <ctgmath>
+#include <queue>
+
+#include <webots/Robot.hpp>
+#include <webots/DistanceSensor.hpp>
+#include <webots/Motor.hpp>
+#include <webots/Compass.hpp>
+#include <webots/GPS.hpp>
+#include <webots/PositionSensor.hpp>
+
+
+#include <webots/Keyboard.hpp>
+
+#define MAP_HEIGHT 11
+#define MAP_WIDTH 19
+#define MAP_INF 10000
+#define MAP_WALL -1
+
+#define MAP_FILE_NAME "../../Map.txt"
+#define PATH_PLAN_FILE_NAME "../../PathPlanFound.txt"
+#define TIME_STEP 64 // time in [ms] of a simulation step
+#define MAX_SPEED 6.28
+
+
+using namespace webots;
+
+struct Obstacle
+{
+    char LeftWall;
+    char FrontWall;
+    char RightWall;
+};
+
+struct Location
+{
+  int Row;
+  int Col;
+};
+
+enum relPos {up, left, down, right};
+
+// Basic class for representing the car position
+class CarPos {
+  private:
+    int xPos;
+    int yPos;
+    relPos heading;
+    char cha;
+  public:
+    CarPos() {
+      xPos=0;
+      yPos=0;
+      heading = down;
+    }
+    int X() {
+      return xPos;
+    }
+    int Y() {
+      return yPos;
+    }
+    relPos H() {
+      return heading;
+    }
+    char ch() {
+      return cha;
+    }
+    void setX(int x) {
+      xPos=x;
+    }
+    void setY(int y) {
+      yPos=y;
+    }
+    void setH(relPos h) {
+      heading=h;
+    }
+    void setCh(char c) {
+      cha=c;
+    }
+};
+
+
+
+class PathNode {
+  private:
+    int x;
+    int y;
+    int value;
+  public:
+    PathNode(int xNew, int yNew, int val) {
+      x=xNew;
+      y=yNew;
+      value=val;
+    }
+    int getX() {return x;}
+    int getY() {return y;}
+    int getVal() {return value;}
+};
+void generateOptimalPath();
+int** mapRead(CarPos *initP);
+void processStringToMap(int** map, std::string currLine,int row,CarPos *initP);
+void showMap(int **map);
+void floodFillMap(int**map,PathNode start);
+std::vector<std::vector<PathNode>> getShortestPaths(int** map,CarPos* initPos);
+std::vector<PathNode> getBestPath(std::vector<std::vector<PathNode>> paths, CarPos* initP,int**map);
+void deleteMap(int **map);
+void showq(std::queue <PathNode> q);
+void displayPath(int** map, std::vector<PathNode> path, CarPos *init);
+std::string formSequence(std::vector<PathNode> path, CarPos *initPos);
+bool beyondBoundaries(int x, int y);
+bool coordInVector(int x, int y, std::vector<PathNode> path);
+int countSteps(std::vector<PathNode> path, CarPos *pos);
+relPos relativePosition(int x1, int y1, int x2, int y2);
+void storeOptimalPath(std::string seq);
+
+Obstacle DetectObstacles(Robot *robot, DistanceSensor *LDS, DistanceSensor *FDS, DistanceSensor *RDS);
+void GoForward(Robot *robot, Motor *leftMotor, Motor *rightMotor, PositionSensor *leftSensor, int repeat, DistanceSensor *LDS, DistanceSensor *FDS, DistanceSensor *RDS, GPS *gps, Compass *compass, int step);
+void Turn(Robot *robot, Motor *leftMotor, Motor *rightMotor, Compass *compass, char direction);
+double GetBearing(const double *comValue);
+Location GetLocation(Robot *robot, GPS *gps);
+void PrintInformation(Robot *robot, DistanceSensor *LDS, DistanceSensor *FDS, DistanceSensor *RDS, GPS *gps, Compass *compass, int step);
+char GetHeading(double bearing);
+void ExecutePath();
+
+
+int main()
+{
+    //generateOptimalPath();
+    ExecutePath();
+
+    return 0;
+};
+// Store optimal path with least turns in the file 
+void generateOptimalPath() {
+
+  CarPos *initPos = new CarPos;
+  
+  int** map=mapRead(initPos);
+  
+  // The map has now been read
+  // All empty space is represented as MAP_INF
+  // The flood fill algorithm is then applied
+  // originate from centre and expand out finding all paths
+  // The centre of the maze is the destination
+  
+  // Centre of map is at (5,9)
+  map[5][9]=0;
+  floodFillMap(map,PathNode(9,5,0));
+  //showMap(map);
+  // Shortest paths are map indexes with required values
+  std::vector<std::vector<PathNode>> paths;
+  //std::cout << "Start - Finding shortest paths:"<<std::endl;
+  std::cout << "--- Task 2 ---"<<std::endl;
+  paths=getShortestPaths(map,initPos);
+  
+  //std::cout << "Number of short paths is " << paths.size() << std::endl;
+  // Display each path contained in paths
+  int pathCount=1;
+  for (std::vector<std::vector<PathNode>>::iterator path=std::begin(paths);path!=std::end(paths);path++) {
+    std::cout<<"--- Path "<<pathCount<<" ---"<<std::endl;
+    displayPath(map,*path, initPos);
+    //dispVector(*path);
+    pathCount++;
+  }
+  //std::cout <<"Done - "<<paths.size()<<" shortest paths found!"<<std::endl;
+  
+  std::vector<PathNode> leastTurns = getBestPath(paths, initPos,map);
+  
+  //std::cout<<"Attempt Map Delete"<<std::endl;
+  // Remember to delete the found map
+  deleteMap(map);
+  return;
+
+}
+
+int** mapRead(CarPos *initP) {
+
+  std::cout << "--- Task 1 ---"<<std::endl;
+
+  // Read the file
+  std::ifstream map(MAP_FILE_NAME);
+  // Initialise the array for storing the map
+  int** outMap = new int*[MAP_HEIGHT];
+  for (int i=0;i<MAP_HEIGHT;i++) {
+    outMap[i]= new int[MAP_WIDTH];
+  }
+  // Read the given map line by line
+  std::string line;
+  int lineNum=0;
+  while (std::getline(map,line)) {
+    // Print the map line by line
+    std::cout<<line<<std::endl;
+    
+    // Fill in the array with each element
+    processStringToMap(outMap,line,lineNum,initP);
+    lineNum++;
+  }
+
+  //std::cout << "Done - Map read!"<<std::endl;
+  //showMap(outMap);
+  return outMap;
+}
+
+void processStringToMap(int** map, std::string currLine, int row, CarPos *initP) {
+  int i=0;
+  int stringIndex=0;
+  while (stringIndex < currLine.length()) {
+    if (currLine[stringIndex]=='|') {
+      map[row][i]=MAP_WALL;
+      
+      if (row > 0) map[row-1][i]=MAP_WALL;
+      if (row < MAP_HEIGHT-1) map[row+1][i]=MAP_WALL;
+      
+    } else if (currLine[stringIndex]=='-') {
+      map[row][i]=MAP_WALL;
+      
+      if (i > 0) map[row][i-1]=MAP_WALL;
+      if (i < MAP_WIDTH-1) map[row][i+1]=MAP_WALL;
+      
+    } else if (currLine[stringIndex]=='v') {
+      initP->setX(i);
+      initP->setY(row);
+      initP->setH(down);
+      initP->setCh('v');
+      map[row][i]=MAP_INF;
+    } else if (currLine[stringIndex]=='<') {
+      initP->setX(i);
+      initP->setY(row);
+      initP->setH(left);
+      initP->setCh('<');
+      map[row][i]=MAP_INF;
+    } else if (currLine[stringIndex]=='>') {
+      initP->setX(i);
+      initP->setY(row);
+      initP->setH(right);
+      initP->setCh('>');
+      map[row][i]=MAP_INF;
+    } else if (currLine[stringIndex]=='^') {
+      initP->setX(i);
+      initP->setY(row);
+      initP->setH(up);
+      initP->setCh('^');
+      map[row][i]=MAP_INF;
+    } else if (map[row][i] != MAP_WALL) {
+      // Case for empty space in the input map
+      map[row][i]=MAP_INF;
+    }
+    i++;
+    stringIndex+=2;
+  }
+}
+
+void showMap(int **map) {
+  for (int i=0;i<MAP_HEIGHT;i++) {
+    for (int j=0;j<MAP_WIDTH;j++) {
+      if (map[i][j] == MAP_WALL) {
+        std::cout<<"xxx";
+      } else if (map[i][j] < 10) {
+        std::cout <<" " << map[i][j] <<" ";
+      
+      } else if (map[i][j]>=10 && map[i][j] < MAP_INF) {
+        std::cout<<map[i][j]<<" ";
+      } else std::cout<<"   ";
+    }
+    std::cout<<std::endl;
+  
+  }
+}
+
+// Run the flood fill algorithm from the map centre
+void floodFillMap(int**map,PathNode start) {
+  // Add a node to the queue
+  // While the queue is not empty
+  // Remove a node
+  // Check all its neighbours
+  // For each neighbour greater than curr+1
+  // Add to queue with updated value
+  std::queue<PathNode> visit;
+  visit.push(start);
+  while (!visit.empty()) {
+    //showq(visit);
+    PathNode curr = visit.front();
+    visit.pop();
+    int currX = curr.getX();
+    int currY = curr.getY();
+    int currV = map[currY][currX];
+    
+    //std::cout <<currX<<" "<<currY<<" "<<currV<<std::endl;
+    
+    // Check each neighbour
+    for (int i =-1; i <= 1; i+=2) {
+      int adj1 = map[currY+i][currX];
+      int adj2 = map[currY][currX+i];
+      
+      if (adj1 != MAP_WALL && currV+1 < adj1) {
+        //std::cout << "Added node1 "<< currV+1<<std::endl;
+        map[currY+i][currX]=currV+1;
+        visit.push(PathNode(currX,currY+i,0));
+      }
+      if (adj2 != MAP_WALL && currV+1 < adj2) {
+        //std::cout << "Added node2 "<<currV+1<<std::endl;
+        map[currY][currX+i]=currV+1;
+        visit.push(PathNode(currX+i,currY,0));
+      }
+    }
+    
+  }
+
+}
+
+// Get shortest paths from the car position
+std::vector<std::vector<PathNode>> getShortestPaths(int** map,CarPos* initPos) {
+  // Get the shortest paths
+  // Start from the initial position of the car
+  // Add the lowest valued node to the path
+  // If multiple are available then duplicate the current vector and continue for all
+  int xStart = initPos->X();
+  int yStart = initPos->Y();
+  PathNode start(xStart,yStart,map[yStart][xStart]);
+  std::vector<std::vector<PathNode>> paths;
+  
+  std::vector<PathNode> initial;
+  initial.push_back(start);
+  
+  paths.push_back(initial);
+
+  bool pathChange = true;
+  // Run loop while paths are still being changed
+  while (pathChange) {
+    
+    std::vector<std::vector<PathNode>> addedPaths;
+    
+    pathChange=false;
+    for (std::vector<std::vector<PathNode>>::iterator path=std::begin(paths);path!=std::end(paths);path++) {
+      // If a vector gets changed then set pathChange to true
+      //std::cout<<"Executed"<<std::endl;
+      // Get the last element in the vector
+      PathNode currElem = path->back();
+      int currX=currElem.getX();
+      int currY=currElem.getY();
+      int currVal=currElem.getVal();
+      //std::cout<<"Current X "<<currX<<" Curr Y "<<currY<<" Curr Val "<<currVal<<std::endl;
+      std::vector<PathNode> copy = *path;
+      
+      // Try add the smallest adjacent element
+      bool added=false;
+      for (int i = -2; i<=2;i+=4) {
+        int adjCheck = i < 0 ? -1 : 1;
+        if (!beyondBoundaries(currX,currY+i) && map[currY+adjCheck][currX]!=MAP_WALL) {
+        
+          if (map[currY+i][currX]!=MAP_WALL && map[currY+i][currX] < currVal) {
+            if (!added) {
+              // Add to the current 
+              path->push_back(PathNode(currX,currY+i,map[currY+i][currX]));
+              added=true;
+              pathChange=true;
+            } else {
+              // Copy vector and push it onto the paths
+              std::vector<PathNode> currAdd = copy;
+              currAdd.push_back(PathNode(currX,currY+i,map[currY+i][currX]));
+              addedPaths.push_back(currAdd);
+              pathChange=true;
+            }
+          }
+        }
+        if (!beyondBoundaries(currX+i,currY) && map[currY][currX+adjCheck]!=MAP_WALL) {
+          if (map[currY][currX+i]!=MAP_WALL && map[currY][currX+i] < currVal) {
+            if (!added) {
+              // Add to the current 
+              path->push_back(PathNode(currX+i,currY,map[currY][currX+i]));
+              added=true;
+              pathChange=true;
+            } else {
+              // Copy vector and push it onto the paths
+              std::vector<PathNode> currAdd = copy;
+              currAdd.push_back(PathNode(currX+i,currY,map[currY][currX+i]));
+              addedPaths.push_back(currAdd);
+              pathChange=true;
+            }
+          }
+        }
+      }
+      // If multiple are available, then for each
+      //      create a copy of the curr vector and append to the copy
+    }
+    for (std::vector<std::vector<PathNode>>::iterator add=std::begin(addedPaths);add!=std::end(addedPaths);add++) {
+      paths.push_back((*add));
+    
+    }
+  }
+  return paths;
+}
+
+// Get optimal path from a list of equally short paths
+std::vector<PathNode> getBestPath(std::vector<std::vector<PathNode>> paths, CarPos* initP,int**map) {
+  //std::cout<<"Start - Finding shortest path with least turns:"<<std::endl;
+  std::cout<<"--- Task 3 ---"<<std::endl;
+  std::vector<PathNode> optimal;
+  int currLong = MAP_INF;
+  for (std::vector<std::vector<PathNode>>::iterator path=std::begin(paths);path!=std::end(paths);path++) {
+    int currPathLen = countSteps(*(path),initP);
+    
+    if (currPathLen < currLong) {
+      currLong=currPathLen;
+      optimal=*path;
+    }
+  
+  }
+  displayPath(map,optimal,initP);
+  std::string bestSequence=formSequence(optimal,initP);
+  std::cout<<"Steps: "<<currLong<<std::endl<<"Path: "<<bestSequence<<std::endl;
+  std::cout<<"--- Task 4 ---"<<std::endl;
+  
+  storeOptimalPath(bestSequence);
+  
+  return optimal;
+}
+
+// Calculate the required number of steps for a path
+int countSteps(std::vector<PathNode> path, CarPos *pos) {
+
+  std::string output = formSequence(path, pos);
+  
+  return output.length()-3;
+}
+
+void deleteMap(int**map) {
+  for (int i =0; i < MAP_HEIGHT; i++) {
+    delete [] map[i];
+  }
+  delete [] map;
+  
+  
+}
+
+void showq(std::queue <PathNode> q) { 
+    std::queue <PathNode> g = q; 
+    while (!g.empty()) 
+    { 
+        std::cout << '\t' << g.front().getX()<<g.front().getY(); 
+        g.pop(); 
+    } 
+    std::cout << '\n'; 
+}
+
+// Display a path
+void displayPath(int** map, std::vector<PathNode> path, CarPos *init) {
+  // Print the map on a column/row basis
+  for (int i = 0; i < MAP_HEIGHT; i++) {
+    for (int j=0; j < MAP_WIDTH; j++) {
+      // Check the current element
+      int curr = map[i][j];
+      // If it is a coordinate in the shortest path then display this
+      if (j==init->X() && i==init->Y()) {
+        // Print the car v
+        std::cout<<" "<<init->ch()<<" ";
+      }else if (curr == MAP_WALL){
+        // Print walls
+        
+        if (i%2==0) {
+          if (j%2==0) {
+            std::cout<<" ";
+          } else {
+            std::cout<<"---";
+          }
+        } else {
+          if (j%2==0) {
+            std::cout<<"|";
+          } else {
+            std::cout<<" ";
+          }
+        }
+      } else if (coordInVector(j,i,path)) {
+        //if (i%2==0 || j%2==0) continue;
+        if (curr/2<10) std::cout<<" "<<curr/2<<" ";
+        else std::cout<<" "<<curr/2;
+        
+      } else {
+        if (j%2==0) std::cout<<" ";
+        else
+        std::cout<<"   ";
+      }
+      
+      
+    }
+    std::cout<<std::endl;
+  
+  }
+
+}
+
+bool coordInVector(int x, int y, std::vector<PathNode> path) {
+  for (std::vector<PathNode>::iterator node=std::begin(path); node!=std::end(path); node++) {
+    if (node->getX() == x && node->getY()==y) return true;
+  
+  }
+  return false;
+}
+
+// Convert the path sequence into instructions for the robot
+std::string formSequence(std::vector<PathNode> path, CarPos *initPos) {
+  std::string seq;
+  relPos heading = initPos->H();
+  //std::cout<<heading<<std::endl;
+  // Convert to original map coords
+  int carX=initPos->X()-1;
+  int carY=initPos->Y()-1;
+  // Set initial car position
+  seq.push_back(carY/2+'0');
+  seq.push_back(carX/2+'0');
+  
+  switch (heading) {
+    case up:
+      seq.push_back('N');
+      break;
+    case down:
+      seq.push_back('S');
+      break;
+    case left:
+      seq.push_back('W');
+      break;
+    case right:
+      seq.push_back('E');
+      break;
+  
+  }
+  
+  PathNode curr=*(std::begin(path));
+  for (std::vector<PathNode>::iterator node = std::next(std::begin(path));node != std::end(path); node++) {
+    // If a turn is required then turn and add 1
+    PathNode next = *node;
+    relPos req = relativePosition(curr.getX(),curr.getY(),next.getX(),next.getY());
+    //std::cout << req << right<<std::endl;
+    while (heading != req) {
+      if ((heading == left && req==down) || (heading==up&&req==left)||(heading==right&&req==up)||(heading==down&&req==right)) {
+        seq.push_back('L');
+        heading=req;
+      } else if ((heading == left && req==up) || (heading==up&&req==right)||(heading==right&&req==down)||(heading==down&&req==left)) {
+        seq.push_back('R');
+        heading=req;
+      } else if ((heading==left && req==right) || (heading==right && req==left) || (heading==up && req==down) || (heading==down && req==up)) {
+        seq.push_back('L');
+        heading=(relPos)((heading+1)%4);
+      }
+      
+    }
+    
+    
+    // Add one for movement into the next cell
+    seq.push_back('F');
+    curr=*node;
+  }
+  
+  return seq;
+
+}
+
+bool beyondBoundaries(int x, int y) {
+  if (x < 0 || x >= MAP_WIDTH) return true;
+  if (y < 0 || y >= MAP_HEIGHT) return true;
+  
+  return false;
+
+}
+
+relPos relativePosition(int x1, int y1, int x2, int y2) {
+  if (y2>y1) return down;
+  else if (y1>y2) return up;
+  else if (x1>x2) return left;
+  else return right;
+}
+
+void storeOptimalPath(std::string seq) {
+  std::cout<<"File: "<<PATH_PLAN_FILE_NAME<<std::endl;
+  std::ofstream bestPath(PATH_PLAN_FILE_NAME);
+  
+  
+  bestPath<<seq<<std::endl;
+  bestPath.close();
+  std::cout<<"Path: "<<seq<<std::endl;
+}
+
+void GoForward(Robot *robot, Motor *leftMotor, Motor *rightMotor, PositionSensor *leftSensor, int repeat, DistanceSensor *LDS, DistanceSensor *FDS, DistanceSensor *RDS, GPS *gps, Compass *compass, int step)
+{
+    int PrintFlag1 = 1, PrintFlag2 = 1, PrintFlag3 = 1;
+
+    // initialize motor speeds
+    double leftSpeed = 0, rightSpeed = 0;
+
+    leftMotor->setPosition(INFINITY);
+    rightMotor->setPosition(INFINITY);
+    leftMotor->setVelocity(0.0);
+    rightMotor->setVelocity(0.0);
+
+    //Since both wheels move equal amounts to go forward, so only need to use one
+    double LeftWheelPosition = leftSensor->getValue();
+
+    //the next desired position is 8.25 rad further, multiplied by the number of squares to go forward
+    double DesiredLeftWheelPosition = LeftWheelPosition + 8.25*repeat;
+    
+    while (robot->step(TIME_STEP) != -1)
+    {
+        double LeftWheelPosition = leftSensor->getValue();
+        double error = DesiredLeftWheelPosition - LeftWheelPosition;
+
+        if (repeat > 1)
+        {
+            if (error > 24.5 && error < 25 && PrintFlag3 == 1 && repeat == 4)
+            {
+                  PrintInformation(robot, LDS, FDS, RDS, gps, compass, step);
+                  PrintFlag3 = 0;
+                  step = step + 1;
+            }
+            if (error > 16.25 && error < 16.75 && PrintFlag2 == 1 && repeat >= 3)
+            {
+                  PrintInformation(robot, LDS, FDS, RDS, gps, compass, step);
+                  PrintFlag2 = 0;
+                  step = step + 1;
+            }
+            if (error > 8 && error < 8.5 && PrintFlag1 == 1  && repeat >= 2)
+            {
+                  PrintInformation(robot, LDS, FDS, RDS, gps, compass, step);
+                  PrintFlag1 = 0;
+                  step = step + 1;
+            }
+          
+        }
+
+        if (error >= 0.5)
+        {
+            leftSpeed = MAX_SPEED;
+            rightSpeed = MAX_SPEED;
+        }
+        else if (error < 0.5) //proportional closed feedback control
+        {
+            leftSpeed = 10*error;
+            rightSpeed = 10*error;
+        }
+
+        // write actuators inputs
+        leftMotor->setVelocity(leftSpeed);
+        rightMotor->setVelocity(rightSpeed);
+
+        //once the position has been reached, stop motors
+        if (LeftWheelPosition == DesiredLeftWheelPosition || error < 0.01)
+        {
+          leftMotor->setVelocity(0.0);
+          rightMotor->setVelocity(0.0);
+          break;
+        }
+    }
+    return;
+}
+
+void Turn(Robot *robot, Motor *leftMotor, Motor *rightMotor, Compass *compass, char direction)
+{
+
+    const double *comValue = compass->getValues();
+    double bearing = GetBearing(comValue);
+    double DesiredBearing = 0;
+    
+    // initialize motor speeds
+    double leftSpeed = 0, rightSpeed = 0;
+    int leftMultiplier = 0, rightMultiplier = 0;
+
+    leftMotor->setPosition(INFINITY);
+    rightMotor->setPosition(INFINITY);
+    leftMotor->setVelocity(0.0);
+    rightMotor->setVelocity(0.0);
+
+    
+    //if the robot is turning right, set desired bearing to current + 90 degrees
+    if (direction == 'r')
+    {
+        DesiredBearing = bearing + 90;
+        DesiredBearing = nearbyint(DesiredBearing); //correct any error from the last turn
+        if (DesiredBearing > 360.0)                 //ensure bearing is in the range of 0-360
+        {
+            DesiredBearing = DesiredBearing - 360;
+        }
+
+        leftMultiplier = 1;                         //ensure wheels spin in the correct directions
+        rightMultiplier = -1;
+    }
+
+    //if the robot is turning left, set desired bearing to current - 90 degrees
+    else if (direction == 'l')
+    {
+        DesiredBearing = bearing - 90;
+        DesiredBearing = nearbyint(DesiredBearing);
+        if (DesiredBearing < 0.0)                     //ensure bearing is in the range of 0-360
+        {
+            DesiredBearing = DesiredBearing + 360;
+        }
+
+        leftMultiplier = -1;
+        rightMultiplier = 1;
+    }
+    
+    while (robot->step(TIME_STEP) != -1)
+    {
+        const double *comValue = compass->getValues();
+        double bearing = GetBearing(comValue);
+
+        //use proportional closed loop feedback control
+        double error = abs(DesiredBearing - bearing);
+
+        if (error >= 15)
+        {
+            leftSpeed = MAX_SPEED*leftMultiplier;
+            rightSpeed = MAX_SPEED*rightMultiplier;
+        }
+        else if (error < 15)
+        {
+            leftSpeed = 0.1*error*leftMultiplier;
+            rightSpeed = 0.1*error*rightMultiplier;
+        }
+        
+       // write actuators inputs
+        leftMotor->setVelocity(leftSpeed);
+        rightMotor->setVelocity(rightSpeed);
+        
+
+        if (bearing == DesiredBearing || error < 0.4)
+        {
+          leftMotor->setVelocity(0.0);
+            rightMotor->setVelocity(0.0);
+            break;
+        }
+    }
+
+    return;
+}
+
+double GetBearing(const double *comValue)
+{
+  double rad = atan2(comValue[0], comValue[2]);
+  double bearing = (rad - 1.5708) / M_PI * 180.0;
+
+  if (bearing < 0.0)
+  {
+      bearing = bearing + 360.0;
+  }
+  return bearing;
+}
+
+//function to convert GPS co-ordinates into row and column, returns results in a Location struct
+Location GetLocation(Robot *robot, GPS *gps)
+{
+  Location CurrentLocation;
+    const double *gpsValue = gps->getValues();
+    CurrentLocation.Row = (int)6.0606*gpsValue[2] + 2.48157;
+    CurrentLocation.Col = (int)6.0606*gpsValue[0] + 4.484844;
+
+    return CurrentLocation;
+}
+
+//function to return which directions have obstacles
+Obstacle DetectObstacles(Robot *robot, DistanceSensor *LDS, DistanceSensor *FDS, DistanceSensor *RDS)
+{
+  Obstacle obstacle;  //initialise obstacle struct
+    
+    bool LeftObstacle = LDS->getValue() < 600.0;
+    bool FrontObstacle = FDS->getValue() < 600.0;
+    bool RightObstacle = RDS->getValue() < 600.0;
+
+    
+    if (LeftObstacle == 1)
+    {
+        obstacle.LeftWall = 'Y';
+    }
+    else
+    {
+       obstacle.LeftWall = 'N';
+    }
+
+    if (RightObstacle == 1)
+    {
+        obstacle.RightWall = 'Y';
+    }
+    else
+    {
+       obstacle.RightWall = 'N';
+    }
+
+    if (FrontObstacle == 1)
+    {
+        obstacle.FrontWall = 'Y';
+    }
+    else
+    {
+       obstacle.FrontWall = 'N';
+    }
+    
+    return obstacle;
+};
+
+
+void PrintInformation(Robot *robot, DistanceSensor *LDS, DistanceSensor *FDS, DistanceSensor *RDS, GPS *gps, Compass *compass, int step)
+{
+    //get current row and column location
+    Location CurrentLocation = GetLocation(robot, gps);
+
+    const double *comValue = compass->getValues();
+    double bearing = GetBearing(comValue);         //get current bearing
+    char heading = GetHeading(bearing);            //convert bearing into a heading
+
+    Obstacle CurrentObstacles = DetectObstacles(robot, LDS, FDS, RDS); //detect obstacles
+
+    std::cout << "Step: " << std::setfill('0') << std::setw(2) << step << ", Row: " << CurrentLocation.Row << ", Column: " << CurrentLocation.Col << ", Heading: " << heading << ", Left Wall: " << CurrentObstacles.LeftWall << ", Front Wall: " << CurrentObstacles.FrontWall << ", Right Wall: " << CurrentObstacles.RightWall << std::endl;
+    
+    return;
+}
+
+//function to convert quantitative bearing into qualitative heading
+char GetHeading(double bearing)
+{
+    char heading = ' ';
+
+    if (bearing > 350 || bearing < 10)
+    {
+        heading = 'N';
+    }
+
+    else if (bearing > 80 && bearing < 100)
+    {
+        heading = 'E';
+    }
+
+    else if (bearing > 170 && bearing < 190)
+    {
+        heading = 'S';
+    }
+
+    else if (bearing > 260 && bearing < 280)
+    {
+        heading = 'W';
+    }
+
+    return heading;
+}
+
+void ExecutePath()
+{
+
+  //declare input file stream
+    std::ifstream inFile(PATH_PLAN_FILE_NAME);
+    
+    //copy contents of inFile to path
+    std::string path;
+    getline(inFile,path);
+    int PathLength = path.length();
+    
+
+    //print information
+    std::cout << "Start - Read path plan from " << PATH_PLAN_FILE_NAME << ":" << std::endl;
+    std::cout << path << std::endl;
+    //std::cout << "Done - Path plan read!" << std::endl;
+    //std::cout << "Start - Execute path plan!" << std::endl;
+
+    // create the Robot instance.
+    Robot *robot = new Robot();
+
+    // initialize devices
+    DistanceSensor *ps[3];
+    char psNames[3][4] = 
+    {
+    "LDS", "FDS", "RDS"
+    };
+
+    //initialise distance sensors
+    for (int i = 0; i < 3; i++) {
+        ps[i] = robot->getDistanceSensor(psNames[i]);
+        ps[i]->enable(TIME_STEP);
+    }
+
+    //initialise motors
+    Motor *leftMotor = robot->getMotor("left wheel motor");
+    Motor *rightMotor = robot->getMotor("right wheel motor");
+
+
+    //initialise compass
+    Compass *compass = robot->getCompass("compass");
+    compass->enable(TIME_STEP);
+    //const double *comValue = compass->getValues();
+
+    //initialise GPS
+    GPS *gps = robot->getGPS("gps");
+    gps->enable(TIME_STEP);
+
+    //initialise Position Sensors
+    PositionSensor *leftSensor = robot->getPositionSensor("left wheel sensor");
+    PositionSensor *rightSensor = robot->getPositionSensor("right wheel sensor");
+    leftSensor->enable(TIME_STEP);
+    rightSensor->enable(TIME_STEP);
+
+
+
+
+    int AutomaticExecutionFlag = 0, ManualExecutionFlag = 0;
+
+
+    //Keyboard *keyboard = robot->getKeyboard();
+    Keyboard *keyboard = new Keyboard();
+    int samplingPeriod = TIME_STEP;
+    keyboard->enable(samplingPeriod);
+    std::cout << "Press a for automatic control, or m for manual control" << std::endl;
+
+  
+
+    while (robot->step(TIME_STEP) != -1)
+    {
+        int key = keyboard->getKey();
+        //std::cout << key;
+
+        switch (key)
+        {
+            case 'A':
+                std::cout << "pressed a" << std::endl;
+                AutomaticExecutionFlag = 1;
+                break;
+
+            case 'M':
+                std::cout << "pressed m" << std::endl;
+                ManualExecutionFlag = 1;
+                break;
+        }
+        if (AutomaticExecutionFlag == 1 || ManualExecutionFlag == 1)
+        {
+            break;
+        }
+    }
+
+
+
+
+    int step = 0;
+
+    // feedback loop: step simulation until an exit event is received
+    while (robot->step(TIME_STEP) != -1) {
+
+        if (ManualExecutionFlag == 1)
+        {
+            //print out information for step 0
+            if (robot->step(TIME_STEP) != -1 && step == 0)
+            {
+               PrintInformation(robot, ps[0], ps[1], ps[2], gps, compass, step);
+               step = step + 1;
+            }
+
+            while (robot->step(TIME_STEP) != -1)
+            {
+                int key = keyboard->getKey();
+                int QuackFlag = 0;
+                bool ObstacleFront = ps[1]->getValue() < 600.0;
+
+                switch (key)
+                {
+                    case 'W':
+                        
+                        if (ObstacleFront == 1)
+                        {
+                            std::cout << "Obstacle in front!" << std::endl;
+                            Sleep(1000);
+                            continue;
+                        }
+                        GoForward(robot, leftMotor, rightMotor, leftSensor, 1, ps[0], ps[1], ps[2], gps, compass, step);
+                        break;
+
+                    case 'A':
+                        Turn(robot, leftMotor, rightMotor, compass, 'l');
+                        break;
+
+                    case 'D':
+                        Turn(robot, leftMotor, rightMotor, compass, 'r');
+                        break;
+
+                    case 'Q':
+                        //std::cout << "Mother duck has quacked!" << std::endl;
+                        QuackFlag = 1;
+                        break;
+
+                    default:
+                        continue;
+                }
+
+                PrintInformation(robot, ps[0], ps[1], ps[2], gps, compass, step);
+                step = step + 1;
+
+                if (QuackFlag == 1)
+                {
+                    break;
+                }
+
+            }
+
+             std::cout << "Mother duck has quacked!" << std::endl;
+        }
+
+        else if (AutomaticExecutionFlag == 1)
+        {
+    
+            //print out information for step 0
+            if (robot->step(TIME_STEP) != -1)
+            {
+               PrintInformation(robot, ps[0], ps[1], ps[2], gps, compass, step);
+               step = step + 1;
+            }
+
+            int counter = 3;
+
+            //loop through instructions and respond accordingly
+            while(counter < PathLength)
+            {
+                bool ObstacleFront = ps[1]->getValue() < 600.0;
+
+                if (path[counter] == 'F' && path[counter+1] == 'F' && path[counter+2] == 'F' && path[counter+3] == 'F')
+                {
+                    if (ObstacleFront == 1)
+                    {
+                        std::cout << "Obstacle in front!" << std::endl;
+                        break;
+                    }
+                    GoForward(robot, leftMotor, rightMotor, leftSensor, 4, ps[0], ps[1], ps[2], gps, compass, step);
+                    step = step + 3;
+                    counter = counter + 3;
+                }
+                else if (path[counter] == 'F' && path[counter+1] == 'F' && path[counter+2] == 'F')
+                {
+                    if (ObstacleFront == 1)
+                    {
+                        std::cout << "Obstacle in front!" << std::endl;
+                        break;
+                    }
+                    GoForward(robot, leftMotor, rightMotor, leftSensor, 3, ps[0], ps[1], ps[2], gps, compass, step);
+                    step = step + 2;
+                    counter = counter + 2;
+                }
+                else if (path[counter] == 'F' && path[counter+1] == 'F')
+                {
+                    if (ObstacleFront == 1)
+                    {
+                        std::cout << "Obstacle in front!" << std::endl;
+                        break;
+                    }
+                    GoForward(robot, leftMotor, rightMotor, leftSensor, 2, ps[0], ps[1], ps[2], gps, compass, step);
+                    step = step + 1;
+                    counter++;
+                }
+                else if (path[counter] == 'F')
+                {
+                    if (ObstacleFront == 1)
+                    {
+                        std::cout << "Obstacle in front!" << std::endl;
+                        break;
+                    }
+                    GoForward(robot, leftMotor, rightMotor, leftSensor, 1, ps[0], ps[1], ps[2], gps, compass, step);
+                }
+                else if (path[counter] == 'L')
+                {
+                    Turn(robot, leftMotor, rightMotor, compass, 'l');
+                }
+                else if (path[counter] == 'R')
+                {
+                    Turn(robot, leftMotor, rightMotor, compass, 'r');
+                }
+
+                PrintInformation(robot, ps[0], ps[1], ps[2], gps, compass, step);
+                step = step + 1;
+                counter++;
+            }
+
+
+            std::cout << "Done - Path plan executed!" << std::endl;
+            break;
+        }
+    }
+
+    keyboard->disable();
+    inFile.close();
+    delete robot;
+}
